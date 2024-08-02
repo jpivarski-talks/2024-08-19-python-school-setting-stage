@@ -4,6 +4,7 @@
 #include <vector>
 #include <string>
 #include <memory>
+#include <map>
 #include <iostream>
 
 // types:
@@ -17,12 +18,17 @@
 
 // [x, y]
 // fun(args) { stmt ; stmt ; stmt }
+// del(name)
 // get(list, index)
 // add(x, y)  --  x and y can both be int or both be lists
 // mul(x, y)
 // map(function, list)
 // reduce(function, list, identity)
 // x = ...
+
+
+//// types /////////////////////////////////////////////////////////////////
+
 
 class ASTNode {
 public:
@@ -152,6 +158,21 @@ private:
 };
 
 
+class ASTDelete: public ASTNode {
+public:
+  ASTDelete(int pos, const std::string& name): name_(name) , ASTNode(pos) { }
+
+  const std::string name() const { return name_; }
+
+  void debug() override {
+    std::cout << "ASTDelete(" << pos() << ", \"" << name_ << "\")";
+  }
+
+private:
+  const std::string name_;
+};
+
+
 class ASTIdentifier: public ASTNode {
 public:
   ASTIdentifier(int pos, const std::string& name): name_(name), ASTNode(pos) { }
@@ -167,6 +188,25 @@ private:
 };
 
 
+// class Object {
+// public:
+
+
+
+// private:
+//   int refcnt_;
+// };
+
+
+// class Scope {
+// public:
+
+// private:
+//   std::unique_ptr<Scope> parent_;
+//   std::unordered_map<std::string, Object> objects_;
+// };
+
+
 typedef std::pair<int, std::string> PosToken;
 
 
@@ -179,7 +219,11 @@ std::unique_ptr<ASTNode> parse_list(int& i, const std::vector<PosToken>& tokens)
 std::unique_ptr<ASTNode> parse_fun(int& i, const std::vector<PosToken>& tokens);
 std::unique_ptr<ASTNode> parse_call(int& i, const std::vector<PosToken>& tokens);
 std::unique_ptr<ASTNode> parse_assign(int& i, const std::vector<PosToken>& tokens);
+std::unique_ptr<ASTNode> parse_delete(int& i, const std::vector<PosToken>& tokens);
 std::unique_ptr<ASTNode> parse_id(int& i, const std::vector<PosToken>& tokens);
+
+
+//// main function /////////////////////////////////////////////////////////
 
 
 int main() {
@@ -223,6 +267,9 @@ int main() {
 
   return 0;
 }
+
+
+//// parsing ///////////////////////////////////////////////////////////////
 
 
 std::string error_arrow(int position) {
@@ -273,6 +320,10 @@ std::unique_ptr<ASTNode> parse(int& i, const std::vector<PosToken>& tokens) {
 
   else if (tokens[i].second == "fun") {
     return parse_fun(i, tokens);
+  }
+
+  else if (tokens[i].second == "del") {
+    return parse_delete(i, tokens);
   }
 
   else if (std::regex_match(tokens[i].second, is_number)) {
@@ -442,6 +493,39 @@ std::unique_ptr<ASTNode> parse_assign(int& i, const std::vector<PosToken>& token
 }
 
 
+std::unique_ptr<ASTNode> parse_delete(int& i, const std::vector<PosToken>& tokens) {
+  int pos = tokens[i].first;
+
+  i++;  // get past "del"
+
+  if (i >= tokens.size()  ||  tokens[i].second != "(") {
+    throw error(pos, "'del' must be followed by a name in parentheses");
+  }
+
+  i++;  // get past "("
+
+  std::regex is_name("[A-Za-z_][A-Za-z_0-9]*");
+  
+  std::string name;
+  if (i < tokens.size()  &&  std::regex_match(tokens[i].second, is_name)) {
+    name = tokens[i].second;
+  }
+  else {
+    throw error(pos, "name of variable to delete must be provided");
+  }
+
+  i++;  // get past name
+
+  if (i >= tokens.size()  ||  tokens[i].second != ")") {
+    throw error(pos, "parentheses must be closed after name of variable to delete");
+  }
+
+  i++;  // get past ")"
+  
+  return std::make_unique<ASTDelete>(pos, name);
+}
+
+
 std::unique_ptr<ASTNode> parse_id(int& i, const std::vector<PosToken>& tokens) {
   int pos = tokens[i].first;
   const std::string name = tokens[i].second;
@@ -450,3 +534,8 @@ std::unique_ptr<ASTNode> parse_id(int& i, const std::vector<PosToken>& tokens) {
 
   return std::make_unique<ASTIdentifier>(pos, name);
 }
+
+//// data //////////////////////////////////////////////////////////////////
+
+
+
