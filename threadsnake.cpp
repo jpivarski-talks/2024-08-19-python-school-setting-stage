@@ -303,7 +303,7 @@ std::unique_ptr<ASTNode> parse_int(int& i, const std::vector<PosToken>& tokens) 
   int pos = tokens[i].first;
   int value = std::stoi(tokens[i].second);
 
-  i++;
+  i++;  // get past int
 
   return std::make_unique<ASTLiteralInt>(pos, value);
 }
@@ -322,7 +322,7 @@ std::unique_ptr<ASTNode> parse_list(int& i, const std::vector<PosToken>& tokens)
       if (tokens[i].second != ",") {
         throw error(tokens[i].first, "commas are required between list items");
       }
-      i++;
+      i++;  // get past ","
     }
     first = false;
 
@@ -446,7 +446,7 @@ std::unique_ptr<ASTNode> parse_id(int& i, const std::vector<PosToken>& tokens) {
   int pos = tokens[i].first;
   const std::string name = tokens[i].second;
 
-  i++;
+  i++;  // get past name
 
   return std::make_unique<ASTIdentifier>(pos, name);
 }
