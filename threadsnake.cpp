@@ -74,6 +74,32 @@ private:
 };
 
 
+class ASTCallNamed: public ASTNode {
+public:
+  ASTCallNamed(int pos, const std::string& name, std::vector<std::unique_ptr<ASTNode>> args)
+    : name_(name)
+    , args_(std::move(args))
+    , ASTNode(pos) { }
+
+  const std::string name() const { return name_; }
+
+  void debug() override {
+    std::cout << "ASTCallNamed(" << pos() << ", \"" << name_ << "\", {";
+    for (int i = 0;  i < args_.size();  i++) {
+      args_[i]->debug();
+      if (i + 1 != args_.size()) {
+        std::cout << ", ";
+      }
+    }
+    std::cout << "})";
+  }
+
+private:
+  const std::string name_;
+  std::vector<std::unique_ptr<ASTNode>> args_;
+};
+
+
 class ASTAssignment: public ASTNode {
 public:
   ASTAssignment(int pos, const std::string& name, std::unique_ptr<ASTNode> value)
@@ -84,7 +110,7 @@ public:
   const std::string name() const { return name_; }
 
   void debug() override {
-    std::cout << "ASTAssignment(" << pos() << ", " << name_ << ", ";
+    std::cout << "ASTAssignment(" << pos() << ", \"" << name_ << "\", ";
     value_->debug();
     std::cout << ")";
   }
@@ -102,7 +128,7 @@ public:
   const std::string name() const { return name_; }
 
   void debug() override {
-    std::cout << "ASTIdentifier(" << pos() << ", " << name_ << ")";
+    std::cout << "ASTIdentifier(" << pos() << ", \"" << name_ << "\")";
   }
 
 private:
@@ -119,6 +145,7 @@ std::vector<PosToken> tokenize(const std::string& line);
 std::unique_ptr<ASTNode> parse(int& i, const std::vector<PosToken>& tokens);
 std::unique_ptr<ASTNode> parse_int(int& i, const std::vector<PosToken>& tokens);
 std::unique_ptr<ASTNode> parse_list(int& i, const std::vector<PosToken>& tokens);
+std::unique_ptr<ASTNode> parse_call(int& i, const std::vector<PosToken>& tokens);
 std::unique_ptr<ASTNode> parse_assign(int& i, const std::vector<PosToken>& tokens);
 std::unique_ptr<ASTNode> parse_id(int& i, const std::vector<PosToken>& tokens);
 
@@ -216,26 +243,6 @@ std::unique_ptr<ASTNode> parse(int& i, const std::vector<PosToken>& tokens) {
     throw error(tokens[i].first, "'fun' not implemented");
   }
 
-  else if (tokens[i].second == "get") {
-    throw error(tokens[i].first, "'get' not implemented");
-  }
-
-  else if (tokens[i].second == "add") {
-    throw error(tokens[i].first, "'add' not implemented");
-  }
-
-  else if (tokens[i].second == "mul") {
-    throw error(tokens[i].first, "'mul' not implemented");
-  }
-
-  else if (tokens[i].second == "map") {
-    throw error(tokens[i].first, "'map' not implemented");
-  }
-
-  else if (tokens[i].second == "reduce") {
-    throw error(tokens[i].first, "'reduce' not implemented");
-  }
-
   else if (std::regex_match(tokens[i].second, is_number)) {
     return parse_int(i, tokens);
   }
@@ -244,6 +251,11 @@ std::unique_ptr<ASTNode> parse(int& i, const std::vector<PosToken>& tokens) {
     if (i + 1 < tokens.size()  &&  tokens[i + 1].second == "=") {
       return parse_assign(i, tokens);
     }
+
+    else if (i + 1 < tokens.size()  &&  tokens[i + 1].second == "(") {
+      return parse_call(i, tokens);
+    }
+
     else {
       return parse_id(i, tokens);
     }
@@ -268,9 +280,9 @@ std::unique_ptr<ASTNode> parse_int(int& i, const std::vector<PosToken>& tokens) 
 std::unique_ptr<ASTNode> parse_list(int& i, const std::vector<PosToken>& tokens) {
   int pos = tokens[i].first;
 
-  std::vector<std::unique_ptr<ASTNode>> content;
-
   i++;   // get past "["
+
+  std::vector<std::unique_ptr<ASTNode>> content;
 
   bool first = true;
   while (tokens[i].second != "]") {
@@ -288,6 +300,34 @@ std::unique_ptr<ASTNode> parse_list(int& i, const std::vector<PosToken>& tokens)
   i++;   // get past "]"
 
   return std::make_unique<ASTLiteralList>(pos, std::move(content));
+}
+
+
+std::unique_ptr<ASTNode> parse_call(int& i, const std::vector<PosToken>& tokens) {
+  int pos = tokens[i].first;
+  const std::string name = tokens[i].second;
+
+  i++;  // get past name
+  i++;  // get past "("
+
+  std::vector<std::unique_ptr<ASTNode>> args;
+
+  bool first = true;
+  while (tokens[i].second != ")") {
+    if (!first) {
+      if (tokens[i].second != ",") {
+        throw error(tokens[i].first, "commas are required between list items");
+      }
+      i++;
+    }
+    first = false;
+
+    args.push_back(parse(i, tokens));
+  }
+
+  i++;   // get past ")"
+
+  return std::make_unique<ASTCallNamed>(pos, name, std::move(args));
 }
 
 
