@@ -16,9 +16,9 @@
 // builtin functions:
 
 // [x, y]
-// fun(args, definition)
+// fun(args) { stmt ; stmt ; stmt }
 // get(list, index)
-// add(x, y)
+// add(x, y)  --  x and y can both be int or both be lists
 // mul(x, y)
 // map(function, list)
 // reduce(function, list, identity)
@@ -71,6 +71,37 @@ public:
 
 private:
   std::vector<std::unique_ptr<ASTNode>> content_;
+};
+
+
+class ASTDefineFun: public ASTNode {
+public:
+  ASTDefineFun(int pos, const std::vector<std::string>& params, std::vector<std::unique_ptr<ASTNode>> body)
+    : params_(params)
+    , body_(std::move(body))
+    , ASTNode(pos) { }
+
+  void debug() override {
+    std::cout << "ASTDefineFun(" << pos() << ", {";
+    for (int i = 0;  i < params_.size();  i++) {
+      std::cout << "\"" << params_[i] << "\"";
+      if (i + 1 != params_.size()) {
+        std::cout << ", ";
+      }
+    }
+    std::cout << "}, {";
+    for (int i = 0;  i < body_.size();  i++) {
+      body_[i]->debug();
+      if (i + 1 != body_.size()) {
+        std::cout << ", ";
+      }
+    }
+    std::cout << "})";
+  }
+
+private:
+  const std::vector<std::string> params_;
+  std::vector<std::unique_ptr<ASTNode>> body_;
 };
 
 
@@ -145,6 +176,7 @@ std::vector<PosToken> tokenize(const std::string& line);
 std::unique_ptr<ASTNode> parse(int& i, const std::vector<PosToken>& tokens);
 std::unique_ptr<ASTNode> parse_int(int& i, const std::vector<PosToken>& tokens);
 std::unique_ptr<ASTNode> parse_list(int& i, const std::vector<PosToken>& tokens);
+std::unique_ptr<ASTNode> parse_fun(int& i, const std::vector<PosToken>& tokens);
 std::unique_ptr<ASTNode> parse_call(int& i, const std::vector<PosToken>& tokens);
 std::unique_ptr<ASTNode> parse_assign(int& i, const std::vector<PosToken>& tokens);
 std::unique_ptr<ASTNode> parse_id(int& i, const std::vector<PosToken>& tokens);
@@ -205,7 +237,7 @@ std::runtime_error error(int position, const std::string& message) {
 
 std::vector<PosToken> tokenize(const std::string& line) {
   std::regex whitespace("\\s*");
-  std::regex token_regex("(-?[0-9]+|[A-Za-z_][A-Za-z_0-9]*|\\(|\\)|\\[|\\]|,|=)");
+  std::regex token_regex("(-?[0-9]+|[A-Za-z_][A-Za-z_0-9]*|\\(|\\)|\\[|\\]|,|;|\\{|\\}|=)");
   auto tokens_begin = std::sregex_iterator(line.begin(), line.end(), token_regex);
   auto tokens_end = std::sregex_iterator();
 
@@ -240,7 +272,7 @@ std::unique_ptr<ASTNode> parse(int& i, const std::vector<PosToken>& tokens) {
   }
 
   else if (tokens[i].second == "fun") {
-    throw error(tokens[i].first, "'fun' not implemented");
+    return parse_fun(i, tokens);
   }
 
   else if (std::regex_match(tokens[i].second, is_number)) {
@@ -303,6 +335,72 @@ std::unique_ptr<ASTNode> parse_list(int& i, const std::vector<PosToken>& tokens)
 }
 
 
+std::unique_ptr<ASTNode> parse_fun(int& i, const std::vector<PosToken>& tokens) {
+  int pos = tokens[i].first;
+
+  i++;  // get past "fun"
+
+  if (tokens[i].second != "(") {
+    throw error(tokens[i].first, "'fun' must be followed by a list of function parameters");
+  }
+
+  i++;  // get past "("
+
+  std::regex is_name("[A-Za-z_][A-Za-z_0-9]*");
+  std::vector<std::string> params;
+
+  bool first = true;
+  while (tokens[i].second != ")") {
+    if (!first) {
+      if (tokens[i].second != ",") {
+        throw error(tokens[i].first, "commas are required between function parameter names");
+      }
+      i++;  // get past ","
+    }
+    first = false;
+
+    if (std::regex_match(tokens[i].second, is_name)) {
+      params.push_back(tokens[i].second);
+    }
+    else {
+      throw error(tokens[i].first, "function parameters must be identifiers");
+    }
+    i++;  // get past parameter name
+  }
+
+  i++;  // get past ")"
+
+  std::vector<std::unique_ptr<ASTNode>> body;
+
+  if (tokens[i].second == "{") {
+    // curly brackets; accept statements separated by semicolons
+
+    i++;  // get past "{"
+
+    bool first = true;
+    while (tokens[i].second != "}") {
+      if (!first) {
+        if (tokens[i].second != ";") {
+          throw error(tokens[i].first, "semicolons are required between statements");
+        }
+        i++;  // get past ";"
+      }
+      first = false;
+
+      body.push_back(parse(i, tokens));
+    }
+
+    i++;   // get past "}"
+  }
+  else {
+    // no curly brackets; only one statement
+    body.push_back(parse(i, tokens));
+  }
+
+  return std::make_unique<ASTDefineFun>(pos, params, std::move(body));
+}
+
+
 std::unique_ptr<ASTNode> parse_call(int& i, const std::vector<PosToken>& tokens) {
   int pos = tokens[i].first;
   const std::string name = tokens[i].second;
@@ -318,7 +416,7 @@ std::unique_ptr<ASTNode> parse_call(int& i, const std::vector<PosToken>& tokens)
       if (tokens[i].second != ",") {
         throw error(tokens[i].first, "commas are required between list items");
       }
-      i++;
+      i++;  // get past ","
     }
     first = false;
 
