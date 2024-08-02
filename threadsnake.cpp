@@ -16,13 +16,13 @@
 // builtin functions:
 
 // [x, y]
-// x = ...
 // fun(args, definition)
 // get(list, index)
 // add(x, y)
 // mul(x, y)
 // map(function, list)
 // reduce(function, list, identity)
+// x = ...
 
 class ASTNode {
 public:
@@ -74,6 +74,42 @@ private:
 };
 
 
+class ASTAssignment: public ASTNode {
+public:
+  ASTAssignment(int pos, const std::string& name, std::unique_ptr<ASTNode> value)
+    : name_(name)
+    , value_(std::move(value))
+    , ASTNode(pos) { }
+
+  const std::string name() const { return name_; }
+
+  void debug() override {
+    std::cout << "ASTAssignment(" << pos() << ", " << name_ << ", ";
+    value_->debug();
+    std::cout << ")";
+  }
+
+private:
+  const std::string name_;
+  std::unique_ptr<ASTNode> value_;
+};
+
+
+class ASTIdentifier: public ASTNode {
+public:
+  ASTIdentifier(int pos, const std::string& name): name_(name), ASTNode(pos) { }
+
+  const std::string name() const { return name_; }
+
+  void debug() override {
+    std::cout << "ASTIdentifier(" << pos() << ", " << name_ << ")";
+  }
+
+private:
+  const std::string name_;
+};
+
+
 typedef std::pair<int, std::string> PosToken;
 
 
@@ -83,6 +119,8 @@ std::vector<PosToken> tokenize(const std::string& line);
 std::unique_ptr<ASTNode> parse(int& i, const std::vector<PosToken>& tokens);
 std::unique_ptr<ASTNode> parse_int(int& i, const std::vector<PosToken>& tokens);
 std::unique_ptr<ASTNode> parse_list(int& i, const std::vector<PosToken>& tokens);
+std::unique_ptr<ASTNode> parse_assign(int& i, const std::vector<PosToken>& tokens);
+std::unique_ptr<ASTNode> parse_id(int& i, const std::vector<PosToken>& tokens);
 
 
 int main() {
@@ -167,14 +205,48 @@ std::unique_ptr<ASTNode> parse(int& i, const std::vector<PosToken>& tokens) {
     throw error(0, "line ends without complete expression");
   }
 
-  std::unique_ptr<ASTNode> as_integer = parse_int(i, tokens);
+  std::regex is_number("-?[0-9]+");
+  std::regex is_name("[A-Za-z_][A-Za-z_0-9]*");
 
-  if (as_integer) {
-    return as_integer;
+  if (tokens[i].second == "[") {
+    return parse_list(i, tokens);
   }
 
-  else if (tokens[i].second == "[") {
-    return parse_list(i, tokens);
+  else if (tokens[i].second == "fun") {
+    throw error(tokens[i].first, "'fun' not implemented");
+  }
+
+  else if (tokens[i].second == "get") {
+    throw error(tokens[i].first, "'get' not implemented");
+  }
+
+  else if (tokens[i].second == "add") {
+    throw error(tokens[i].first, "'add' not implemented");
+  }
+
+  else if (tokens[i].second == "mul") {
+    throw error(tokens[i].first, "'mul' not implemented");
+  }
+
+  else if (tokens[i].second == "map") {
+    throw error(tokens[i].first, "'map' not implemented");
+  }
+
+  else if (tokens[i].second == "reduce") {
+    throw error(tokens[i].first, "'reduce' not implemented");
+  }
+
+  else if (std::regex_match(tokens[i].second, is_number)) {
+    return parse_int(i, tokens);
+  }
+
+  else if (std::regex_match(tokens[i].second, is_name)) {
+    if (i + 1 < tokens.size()  &&  tokens[i + 1].second == "=") {
+      return parse_assign(i, tokens);
+    }
+    else {
+      return parse_id(i, tokens);
+    }
   }
 
   else {
@@ -185,16 +257,10 @@ std::unique_ptr<ASTNode> parse(int& i, const std::vector<PosToken>& tokens) {
 
 std::unique_ptr<ASTNode> parse_int(int& i, const std::vector<PosToken>& tokens) {
   int pos = tokens[i].first;
-
-  int value;
-  try {
-    value = std::stoi(tokens[i].second);
-  }
-  catch (std::invalid_argument const& exception) {
-    return nullptr;
-  }
+  int value = std::stoi(tokens[i].second);
 
   i++;
+
   return std::make_unique<ASTLiteralInt>(pos, value);
 }
 
@@ -222,4 +288,27 @@ std::unique_ptr<ASTNode> parse_list(int& i, const std::vector<PosToken>& tokens)
   i++;   // get past "]"
 
   return std::make_unique<ASTLiteralList>(pos, std::move(content));
+}
+
+
+std::unique_ptr<ASTNode> parse_assign(int& i, const std::vector<PosToken>& tokens) {
+  int pos = tokens[i].first;
+  const std::string name = tokens[i].second;
+
+  i++;  // get past name
+  i++;  // get past "="
+
+  std::unique_ptr<ASTNode> value = parse(i, tokens);
+
+  return std::make_unique<ASTAssignment>(pos, name, std::move(value));
+}
+
+
+std::unique_ptr<ASTNode> parse_id(int& i, const std::vector<PosToken>& tokens) {
+  int pos = tokens[i].first;
+  const std::string name = tokens[i].second;
+
+  i++;
+
+  return std::make_unique<ASTIdentifier>(pos, name);
 }
