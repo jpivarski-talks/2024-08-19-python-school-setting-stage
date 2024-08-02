@@ -30,12 +30,47 @@
 //// types /////////////////////////////////////////////////////////////////
 
 
+class Object {
+public:
+  Object() { }
+
+private:
+};
+
+
+class ObjectInt: public Object {
+public:
+  ObjectInt(int value): value_(value), Object() { }
+
+  int value() const { return value_; }
+
+private:
+  int value_;
+};
+
+
+class Scope {
+public:
+  Scope(std::unique_ptr<Scope> parent): parent_(std::move(parent)), objects_() { }
+
+  void assign(const std::string& name, std::shared_ptr<Object> object);
+  void del(const std::string& name);
+  std::shared_ptr<Object> get(const std::string& name);
+
+private:
+  std::unique_ptr<Scope> parent_;
+  std::unordered_map<std::string, std::shared_ptr<Object>> objects_;
+};
+
+
 class ASTNode {
 public:
   ASTNode(int pos): pos_(pos) { }
   virtual ~ASTNode() = default;
 
   int pos() const { return pos_; }
+
+  virtual std::shared_ptr<Object> run(std::shared_ptr<Scope> scope) = 0;
 
   virtual void debug() = 0;
 
@@ -48,6 +83,8 @@ public:
   ASTLiteralInt(int pos, int value): value_(value), ASTNode(pos) { }
 
   int value() const { return value_; }
+
+  std::shared_ptr<Object> run(std::shared_ptr<Scope> scope) override;
 
   void debug() override {
     std::cout << "ASTLiteralInt(" << pos() << ", " << value_ << ")";
@@ -63,6 +100,8 @@ public:
   ASTLiteralList(int pos, std::vector<std::unique_ptr<ASTNode>> content)
     : content_(std::move(content))
     , ASTNode(pos) { }
+
+  std::shared_ptr<Object> run(std::shared_ptr<Scope> scope) override;
 
   void debug() override {
     std::cout << "ASTLiteralList(" << pos() << ", {";
@@ -86,6 +125,8 @@ public:
     : params_(params)
     , body_(std::move(body))
     , ASTNode(pos) { }
+
+  std::shared_ptr<Object> run(std::shared_ptr<Scope> scope) override;
 
   void debug() override {
     std::cout << "ASTDefineFun(" << pos() << ", {";
@@ -120,6 +161,8 @@ public:
 
   const std::string name() const { return name_; }
 
+  std::shared_ptr<Object> run(std::shared_ptr<Scope> scope) override;
+
   void debug() override {
     std::cout << "ASTCallNamed(" << pos() << ", \"" << name_ << "\", {";
     for (int i = 0;  i < args_.size();  i++) {
@@ -146,6 +189,8 @@ public:
 
   const std::string name() const { return name_; }
 
+  std::shared_ptr<Object> run(std::shared_ptr<Scope> scope) override;
+
   void debug() override {
     std::cout << "ASTAssignment(" << pos() << ", \"" << name_ << "\", ";
     value_->debug();
@@ -164,6 +209,8 @@ public:
 
   const std::string name() const { return name_; }
 
+  std::shared_ptr<Object> run(std::shared_ptr<Scope> scope) override;
+
   void debug() override {
     std::cout << "ASTDelete(" << pos() << ", \"" << name_ << "\")";
   }
@@ -179,6 +226,8 @@ public:
 
   const std::string name() const { return name_; }
 
+  std::shared_ptr<Object> run(std::shared_ptr<Scope> scope) override;
+
   void debug() override {
     std::cout << "ASTIdentifier(" << pos() << ", \"" << name_ << "\")";
   }
@@ -186,25 +235,6 @@ public:
 private:
   const std::string name_;
 };
-
-
-// class Object {
-// public:
-
-
-
-// private:
-//   int refcnt_;
-// };
-
-
-// class Scope {
-// public:
-
-// private:
-//   std::unique_ptr<Scope> parent_;
-//   std::unordered_map<std::string, Object> objects_;
-// };
 
 
 typedef std::pair<int, std::string> PosToken;
@@ -229,6 +259,8 @@ std::unique_ptr<ASTNode> parse_id(int& i, const std::vector<PosToken>& tokens);
 int main() {
   using_history();
   rl_bind_key('\t', rl_insert);
+
+  std::shared_ptr<Scope> scope = std::make_shared<Scope>(nullptr);
 
   char* line;
   while ((line = readline(">> ")) != nullptr) {
@@ -538,4 +570,51 @@ std::unique_ptr<ASTNode> parse_id(int& i, const std::vector<PosToken>& tokens) {
 //// data //////////////////////////////////////////////////////////////////
 
 
+void Scope::assign(const std::string& name, std::shared_ptr<Object> object) {
+  objects_[name] = object;
+}
 
+
+void Scope::del(const std::string& name) {
+  objects_.erase(name);
+}
+
+
+std::shared_ptr<Object> Scope::get(const std::string& name) {
+  return objects_[name];
+}
+
+
+std::shared_ptr<Object> ASTLiteralInt::run(std::shared_ptr<Scope> scope) {
+  return std::make_shared<ObjectInt>(123);
+}
+
+
+std::shared_ptr<Object> ASTLiteralList::run(std::shared_ptr<Scope> scope) {
+  return std::make_shared<ObjectInt>(123);
+}
+
+
+std::shared_ptr<Object> ASTDefineFun::run(std::shared_ptr<Scope> scope) {
+  return std::make_shared<ObjectInt>(123);
+}
+
+
+std::shared_ptr<Object> ASTCallNamed::run(std::shared_ptr<Scope> scope) {
+  return std::make_shared<ObjectInt>(123);
+}
+
+
+std::shared_ptr<Object> ASTAssignment::run(std::shared_ptr<Scope> scope) {
+  return std::make_shared<ObjectInt>(123);
+}
+
+
+std::shared_ptr<Object> ASTDelete::run(std::shared_ptr<Scope> scope) {
+  return std::make_shared<ObjectInt>(123);
+}
+
+
+std::shared_ptr<Object> ASTIdentifier::run(std::shared_ptr<Scope> scope) {
+  return std::make_shared<ObjectInt>(123);
+}
