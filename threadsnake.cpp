@@ -30,9 +30,31 @@
 //// types /////////////////////////////////////////////////////////////////
 
 
+const int MAX_REPR = 80;
+
+
+class Object;
+
+
+class Scope {
+public:
+  Scope(std::unique_ptr<Scope> parent): parent_(std::move(parent)), objects_() { }
+
+  void assign(int pos, const std::string& name, std::shared_ptr<Object> object);
+  void del(int pos, const std::string& name);
+  std::shared_ptr<Object> get(int pos, const std::string& name);
+
+private:
+  std::unique_ptr<Scope> parent_;
+  std::unordered_map<std::string, std::shared_ptr<Object>> objects_;
+};
+
+
 class Object {
 public:
   Object() { }
+
+  virtual std::string repr(int& remaining) const = 0;
 
 private:
 };
@@ -44,22 +66,36 @@ public:
 
   int value() const { return value_; }
 
+  std::string repr(int& remaining) const override;
+
 private:
   int value_;
 };
 
 
-class Scope {
+class ObjectFunction: public Object {
 public:
-  Scope(std::unique_ptr<Scope> parent): parent_(std::move(parent)), objects_() { }
+  ObjectFunction(): Object() { }
 
-  void assign(const std::string& name, std::shared_ptr<Object> object);
-  void del(const std::string& name);
-  std::shared_ptr<Object> get(const std::string& name);
+  virtual std::shared_ptr<Object> run(
+    int pos, std::shared_ptr<Scope> scope, std::vector<std::shared_ptr<Object>> args
+  ) = 0;
 
 private:
-  std::unique_ptr<Scope> parent_;
-  std::unordered_map<std::string, std::shared_ptr<Object>> objects_;
+};
+
+
+class ObjectFunctionAdd: public ObjectFunction {
+public:
+  ObjectFunctionAdd(): ObjectFunction() { }
+
+  std::string repr(int& remaining) const override;
+
+  std::shared_ptr<Object> run(
+    int pos, std::shared_ptr<Scope> scope, std::vector<std::shared_ptr<Object>> args
+  ) override;
+
+private:
 };
 
 
@@ -262,6 +298,8 @@ int main() {
 
   std::shared_ptr<Scope> scope = std::make_shared<Scope>(nullptr);
 
+  scope->assign(0, "add", std::make_shared<ObjectFunctionAdd>());
+
   char* line;
   while ((line = readline(">> ")) != nullptr) {
     if (strlen(line) > 0) {
@@ -287,10 +325,26 @@ int main() {
         std::cout << "complete expression, but line doesn't end" << std::endl;
       }
       else {
-        // success!
+        std::shared_ptr<Object> result(nullptr);
+        try {
+          result = ast->run(scope);
+        }
+        catch (std::runtime_error const& exception) {
+          // failure: could not execute the code for some reason
+          std::cout << exception.what() << std::endl;
+        }
 
-        ast->debug();
-        std::cout << std::endl;
+        if (result) {
+          // success: print the result's repr
+
+          int remaining = MAX_REPR;
+          std::string repr = result->repr(remaining);
+          if (repr.size() > MAX_REPR) {
+            repr = repr.substr(0, MAX_REPR - 3) + "...";
+          }
+          std::cout << repr << std::endl;
+        }
+
       }
     }
 
@@ -570,23 +624,72 @@ std::unique_ptr<ASTNode> parse_id(int& i, const std::vector<PosToken>& tokens) {
 //// data //////////////////////////////////////////////////////////////////
 
 
-void Scope::assign(const std::string& name, std::shared_ptr<Object> object) {
+void Scope::assign(int pos, const std::string& name, std::shared_ptr<Object> object) {
   objects_[name] = object;
 }
 
 
-void Scope::del(const std::string& name) {
+void Scope::del(int pos, const std::string& name) {
   objects_.erase(name);
 }
 
 
-std::shared_ptr<Object> Scope::get(const std::string& name) {
-  return objects_[name];
+std::shared_ptr<Object> Scope::get(int pos, const std::string& name) {
+  if (objects_.count(name)) {
+    return objects_[name];
+  }
+  else {
+    throw error(pos, "there is no variable named '" + name + "'");
+  }
+}
+
+
+std::string ObjectInt::repr(int& remaining) const {
+  if (remaining < 0) {
+    return "";
+  }
+
+  std::string out = std::to_string(value_);
+
+  remaining -= out.size();
+
+  return out;
+}
+
+
+std::string ObjectFunctionAdd::repr(int& remaining) const {
+  if (remaining < 0) {
+    return "";
+  }
+
+  remaining -= 24;
+
+  return "<builtin function 'add'>";
+}
+
+
+std::shared_ptr<Object> ObjectFunctionAdd::run(
+  int pos, std::shared_ptr<Scope> scope, std::vector<std::shared_ptr<Object>> args
+) {
+  if (args.size() != 2) {
+    throw error(pos, "'add' function takes exactly 2 arguments");
+  }
+
+  std::shared_ptr<ObjectInt> arg0_int = std::dynamic_pointer_cast<ObjectInt>(args[0]);
+  std::shared_ptr<ObjectInt> arg1_int = std::dynamic_pointer_cast<ObjectInt>(args[1]);
+
+  if (arg0_int  &&  arg1_int) {
+    return std::make_shared<ObjectInt>(arg0_int->value() + arg1_int->value());
+  }
+
+  else {
+    throw error(pos, "'add' function's arguments must both be integers");
+  }
 }
 
 
 std::shared_ptr<Object> ASTLiteralInt::run(std::shared_ptr<Scope> scope) {
-  return std::make_shared<ObjectInt>(123);
+  return std::make_shared<ObjectInt>(value_);
 }
 
 
@@ -601,12 +704,29 @@ std::shared_ptr<Object> ASTDefineFun::run(std::shared_ptr<Scope> scope) {
 
 
 std::shared_ptr<Object> ASTCallNamed::run(std::shared_ptr<Scope> scope) {
-  return std::make_shared<ObjectInt>(123);
+  std::shared_ptr<Object> maybe_fun = scope->get(pos(), name_);
+
+  std::shared_ptr<ObjectFunction> fun = std::dynamic_pointer_cast<ObjectFunction>(maybe_fun);
+
+  if (!fun) {
+    throw error(pos(), "attempting to call an argument that is not a function");
+  }
+
+  std::vector<std::shared_ptr<Object>> args;
+  for (int i = 0;  i < args_.size();  i++) {
+    args.push_back(args_[i]->run(scope));
+  }
+
+  return fun->run(pos(), scope, args);
 }
 
 
 std::shared_ptr<Object> ASTAssignment::run(std::shared_ptr<Scope> scope) {
-  return std::make_shared<ObjectInt>(123);
+  std::shared_ptr<Object> result = value_->run(scope);
+
+  scope->assign(pos(), name_, result);
+
+  return result;
 }
 
 
@@ -616,5 +736,5 @@ std::shared_ptr<Object> ASTDelete::run(std::shared_ptr<Scope> scope) {
 
 
 std::shared_ptr<Object> ASTIdentifier::run(std::shared_ptr<Scope> scope) {
-  return std::make_shared<ObjectInt>(123);
+  return scope->get(pos(), name_);
 }
