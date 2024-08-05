@@ -7,13 +7,6 @@
 #include <map>
 #include <iostream>
 
-// types:
-
-// int
-// list
-// function
-// type
-
 // builtin functions:
 
 // [x, y]
@@ -47,7 +40,7 @@ public:
     std::shared_ptr<Object> object,
     std::vector<std::shared_ptr<ASTNode>>& stack
   );
-  void del(
+  std::shared_ptr<Object> del(
     const std::string& name,
     std::vector<std::shared_ptr<ASTNode>>& stack
   );
@@ -82,6 +75,17 @@ public:
 
 private:
   int value_;
+};
+
+
+class ObjectList: public Object {
+public:
+  ObjectList(const std::vector<std::shared_ptr<Object>>& values): values_(values), Object() { }
+
+  std::string repr(int& remaining) const override;
+
+private:
+  const std::vector<std::shared_ptr<Object>> values_;
 };
 
 
@@ -178,9 +182,9 @@ public:
   ASTLiteralList(
     int pos,
     const std::string& line,
-    std::vector<std::shared_ptr<ASTNode>> content
+    std::vector<std::shared_ptr<ASTNode>> values
   )
-    : content_(content)
+    : values_(values)
     , ASTNode(pos, line) { }
 
   std::shared_ptr<Object> run(
@@ -190,9 +194,9 @@ public:
 
   void debug() override {
     std::cout << "ASTLiteralList(" << pos() << ", {";
-    for (int i = 0;  i < content_.size();  i++) {
-      content_[i]->debug();
-      if (i + 1 != content_.size()) {
+    for (int i = 0;  i < values_.size();  i++) {
+      values_[i]->debug();
+      if (i + 1 != values_.size()) {
         std::cout << ", ";
       }
     }
@@ -200,7 +204,7 @@ public:
   }
 
 private:
-  std::vector<std::shared_ptr<ASTNode>> content_;
+  std::vector<std::shared_ptr<ASTNode>> values_;
 };
 
 
@@ -569,7 +573,7 @@ std::shared_ptr<ASTNode>
 
   i++;   // get past "["
 
-  std::vector<std::shared_ptr<ASTNode>> content;
+  std::vector<std::shared_ptr<ASTNode>> values;
 
   bool first = true;
   while (tokens[i].second != "]") {
@@ -581,12 +585,12 @@ std::shared_ptr<ASTNode>
     }
     first = false;
 
-    content.push_back(parse(i, tokens, line));
+    values.push_back(parse(i, tokens, line));
   }
 
   i++;   // get past "]"
 
-  return std::make_shared<ASTLiteralList>(pos, line, content);
+  return std::make_shared<ASTLiteralList>(pos, line, values);
 }
 
 
@@ -756,11 +760,21 @@ void Scope::assign(
 }
 
 
-void Scope::del(
+std::shared_ptr<Object> Scope::del(
   const std::string& name,
   std::vector<std::shared_ptr<ASTNode>>& stack
 ) {
-  objects_.erase(name);
+  if (objects_.count(name)) {
+    std::shared_ptr<Object> result = objects_[name];
+    objects_.erase(name);
+    return result;
+  }
+  else if (parent_) {
+    return parent_->del(name, stack);
+  }
+  else {
+    throw error(stack, "there is no variable named '" + name + "'");
+  }
 }
 
 
@@ -770,6 +784,9 @@ std::shared_ptr<Object> Scope::get(
 ) {
   if (objects_.count(name)) {
     return objects_[name];
+  }
+  else if (parent_) {
+    return parent_->get(name, stack);
   }
   else {
     throw error(stack, "there is no variable named '" + name + "'");
@@ -785,6 +802,36 @@ std::string ObjectInt::repr(int& remaining) const {
   std::string out = std::to_string(value_);
 
   remaining -= out.size();
+
+  return out;
+}
+
+
+std::string ObjectList::repr(int& remaining) const {
+  if (remaining < 0) {
+    return "";
+  }
+
+  remaining--;
+
+  std::string out = "[";
+  for (int i = 0;  i < values_.size();  i++) {
+    if (i != 0) {
+      out += ", ";
+      remaining -= 2;
+    }
+    out += values_[i]->repr(remaining);
+
+    if (remaining < 0) {
+      break;
+    }
+  }
+
+  if (remaining >= 0) {
+    out += "]";
+  }
+
+  remaining--;
 
   return out;
 }
@@ -869,7 +916,13 @@ std::shared_ptr<Object> ASTLiteralList::run(
   std::shared_ptr<Scope> scope,
   std::vector<std::shared_ptr<ASTNode>>& stack
 ) {
-  return std::make_shared<ObjectInt>(123);
+  std::vector<std::shared_ptr<Object>> values;
+
+  for (int i = 0;  i < values_.size();  i++) {
+    values.push_back(values_[i]->run(scope, stack));
+  }
+
+  return std::make_shared<ObjectList>(values);
 }
 
 
@@ -922,7 +975,7 @@ std::shared_ptr<Object> ASTDelete::run(
   std::shared_ptr<Scope> scope,
   std::vector<std::shared_ptr<ASTNode>>& stack
 ) {
-  return std::make_shared<ObjectInt>(123);
+  return scope->del(name_, stack);
 }
 
 
