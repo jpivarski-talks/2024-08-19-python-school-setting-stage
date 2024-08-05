@@ -179,6 +179,9 @@ public:
     , body_(body)
     , ASTNode(pos) { }
 
+  const std::vector<std::string> params() { return params_; }
+  std::vector<std::shared_ptr<ASTNode>> body() { return body_; }
+
   std::shared_ptr<Object> run(std::shared_ptr<Scope> scope) override;
 
   void debug() override {
@@ -719,7 +722,21 @@ std::string ObjectUserFunction::repr(int& remaining) const {
 std::shared_ptr<Object> ObjectUserFunction::run(
   int pos, std::shared_ptr<Scope> scope, std::vector<std::shared_ptr<Object>> args
 ) {
+  if (args.size() != fun_->params().size()) {
+    throw error(pos, "wrong number of arguments for user-defined function");
+  }
 
+  std::shared_ptr<Scope> nested_scope(scope);
+
+  for (int i = 0;  i < args.size();  i++) {
+    nested_scope->assign(pos, fun_->params()[i], args[i]);
+  }
+
+  std::shared_ptr<Object> out;
+  for (int i = 0;  i < fun_->body().size();  i++) {
+    out = fun_->body()[i]->run(nested_scope);
+  }
+  return out;
 }
 
 
