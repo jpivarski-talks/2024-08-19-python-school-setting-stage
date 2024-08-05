@@ -34,18 +34,20 @@ const int MAX_REPR = 80;
 
 
 class Object;
+class ASTNode;
+class ASTDefineFun;
 
 
 class Scope {
 public:
-  Scope(std::unique_ptr<Scope> parent): parent_(std::move(parent)), objects_() { }
+  Scope(std::shared_ptr<Scope> parent): parent_(parent), objects_() { }
 
   void assign(int pos, const std::string& name, std::shared_ptr<Object> object);
   void del(int pos, const std::string& name);
   std::shared_ptr<Object> get(int pos, const std::string& name);
 
 private:
-  std::unique_ptr<Scope> parent_;
+  std::shared_ptr<Scope> parent_;
   std::unordered_map<std::string, std::shared_ptr<Object>> objects_;
 };
 
@@ -99,6 +101,21 @@ private:
 };
 
 
+class ObjectUserFunction: public ObjectFunction {
+public:
+  ObjectUserFunction(std::shared_ptr<ASTDefineFun> fun): fun_(fun), ObjectFunction() { }
+
+  std::string repr(int& remaining) const override;
+
+  std::shared_ptr<Object> run(
+    int pos, std::shared_ptr<Scope> scope, std::vector<std::shared_ptr<Object>> args
+  ) override;
+
+private:
+  std::shared_ptr<ASTDefineFun> fun_;
+};
+
+
 class ASTNode {
 public:
   ASTNode(int pos): pos_(pos) { }
@@ -133,8 +150,8 @@ private:
 
 class ASTLiteralList: public ASTNode {
 public:
-  ASTLiteralList(int pos, std::vector<std::unique_ptr<ASTNode>> content)
-    : content_(std::move(content))
+  ASTLiteralList(int pos, std::vector<std::shared_ptr<ASTNode>> content)
+    : content_(content)
     , ASTNode(pos) { }
 
   std::shared_ptr<Object> run(std::shared_ptr<Scope> scope) override;
@@ -151,15 +168,15 @@ public:
   }
 
 private:
-  std::vector<std::unique_ptr<ASTNode>> content_;
+  std::vector<std::shared_ptr<ASTNode>> content_;
 };
 
 
 class ASTDefineFun: public ASTNode {
 public:
-  ASTDefineFun(int pos, const std::vector<std::string>& params, std::vector<std::unique_ptr<ASTNode>> body)
+  ASTDefineFun(int pos, const std::vector<std::string>& params, std::vector<std::shared_ptr<ASTNode>> body)
     : params_(params)
-    , body_(std::move(body))
+    , body_(body)
     , ASTNode(pos) { }
 
   std::shared_ptr<Object> run(std::shared_ptr<Scope> scope) override;
@@ -184,15 +201,15 @@ public:
 
 private:
   const std::vector<std::string> params_;
-  std::vector<std::unique_ptr<ASTNode>> body_;
+  std::vector<std::shared_ptr<ASTNode>> body_;
 };
 
 
 class ASTCallNamed: public ASTNode {
 public:
-  ASTCallNamed(int pos, const std::string& name, std::vector<std::unique_ptr<ASTNode>> args)
+  ASTCallNamed(int pos, const std::string& name, std::vector<std::shared_ptr<ASTNode>> args)
     : name_(name)
-    , args_(std::move(args))
+    , args_(args)
     , ASTNode(pos) { }
 
   const std::string name() const { return name_; }
@@ -212,15 +229,15 @@ public:
 
 private:
   const std::string name_;
-  std::vector<std::unique_ptr<ASTNode>> args_;
+  std::vector<std::shared_ptr<ASTNode>> args_;
 };
 
 
 class ASTAssignment: public ASTNode {
 public:
-  ASTAssignment(int pos, const std::string& name, std::unique_ptr<ASTNode> value)
+  ASTAssignment(int pos, const std::string& name, std::shared_ptr<ASTNode> value)
     : name_(name)
-    , value_(std::move(value))
+    , value_(value)
     , ASTNode(pos) { }
 
   const std::string name() const { return name_; }
@@ -235,13 +252,13 @@ public:
 
 private:
   const std::string name_;
-  std::unique_ptr<ASTNode> value_;
+  std::shared_ptr<ASTNode> value_;
 };
 
 
 class ASTDelete: public ASTNode {
 public:
-  ASTDelete(int pos, const std::string& name): name_(name) , ASTNode(pos) { }
+  ASTDelete(int pos, const std::string& name): name_(name), ASTNode(pos) { }
 
   const std::string name() const { return name_; }
 
@@ -279,14 +296,14 @@ typedef std::pair<int, std::string> PosToken;
 std::string error_arrow(int position);
 std::runtime_error error(int position, const std::string& message);
 std::vector<PosToken> tokenize(const std::string& line);
-std::unique_ptr<ASTNode> parse(int& i, const std::vector<PosToken>& tokens);
-std::unique_ptr<ASTNode> parse_int(int& i, const std::vector<PosToken>& tokens);
-std::unique_ptr<ASTNode> parse_list(int& i, const std::vector<PosToken>& tokens);
-std::unique_ptr<ASTNode> parse_fun(int& i, const std::vector<PosToken>& tokens);
-std::unique_ptr<ASTNode> parse_call(int& i, const std::vector<PosToken>& tokens);
-std::unique_ptr<ASTNode> parse_assign(int& i, const std::vector<PosToken>& tokens);
-std::unique_ptr<ASTNode> parse_delete(int& i, const std::vector<PosToken>& tokens);
-std::unique_ptr<ASTNode> parse_id(int& i, const std::vector<PosToken>& tokens);
+std::shared_ptr<ASTNode> parse(int& i, const std::vector<PosToken>& tokens);
+std::shared_ptr<ASTNode> parse_int(int& i, const std::vector<PosToken>& tokens);
+std::shared_ptr<ASTNode> parse_list(int& i, const std::vector<PosToken>& tokens);
+std::shared_ptr<ASTNode> parse_fun(int& i, const std::vector<PosToken>& tokens);
+std::shared_ptr<ASTNode> parse_call(int& i, const std::vector<PosToken>& tokens);
+std::shared_ptr<ASTNode> parse_assign(int& i, const std::vector<PosToken>& tokens);
+std::shared_ptr<ASTNode> parse_delete(int& i, const std::vector<PosToken>& tokens);
+std::shared_ptr<ASTNode> parse_id(int& i, const std::vector<PosToken>& tokens);
 
 
 //// main function /////////////////////////////////////////////////////////
@@ -308,7 +325,7 @@ int main() {
 
     std::vector<PosToken> tokens;
     int i = 0;
-    std::unique_ptr<ASTNode> ast;
+    std::shared_ptr<ASTNode> ast;
     try {
       tokens = tokenize(line);
       ast = parse(i, tokens);
@@ -392,7 +409,7 @@ std::vector<PosToken> tokenize(const std::string& line) {
 }
 
 
-std::unique_ptr<ASTNode> parse(int& i, const std::vector<PosToken>& tokens) {
+std::shared_ptr<ASTNode> parse(int& i, const std::vector<PosToken>& tokens) {
   if (i >= tokens.size()) {
     throw error(0, "line ends without complete expression");
   }
@@ -436,22 +453,22 @@ std::unique_ptr<ASTNode> parse(int& i, const std::vector<PosToken>& tokens) {
 }
 
 
-std::unique_ptr<ASTNode> parse_int(int& i, const std::vector<PosToken>& tokens) {
+std::shared_ptr<ASTNode> parse_int(int& i, const std::vector<PosToken>& tokens) {
   int pos = tokens[i].first;
   int value = std::stoi(tokens[i].second);
 
   i++;  // get past int
 
-  return std::make_unique<ASTLiteralInt>(pos, value);
+  return std::make_shared<ASTLiteralInt>(pos, value);
 }
 
 
-std::unique_ptr<ASTNode> parse_list(int& i, const std::vector<PosToken>& tokens) {
+std::shared_ptr<ASTNode> parse_list(int& i, const std::vector<PosToken>& tokens) {
   int pos = tokens[i].first;
 
   i++;   // get past "["
 
-  std::vector<std::unique_ptr<ASTNode>> content;
+  std::vector<std::shared_ptr<ASTNode>> content;
 
   bool first = true;
   while (tokens[i].second != "]") {
@@ -468,11 +485,11 @@ std::unique_ptr<ASTNode> parse_list(int& i, const std::vector<PosToken>& tokens)
 
   i++;   // get past "]"
 
-  return std::make_unique<ASTLiteralList>(pos, std::move(content));
+  return std::make_shared<ASTLiteralList>(pos, content);
 }
 
 
-std::unique_ptr<ASTNode> parse_fun(int& i, const std::vector<PosToken>& tokens) {
+std::shared_ptr<ASTNode> parse_fun(int& i, const std::vector<PosToken>& tokens) {
   int pos = tokens[i].first;
 
   i++;  // get past "fun"
@@ -507,7 +524,7 @@ std::unique_ptr<ASTNode> parse_fun(int& i, const std::vector<PosToken>& tokens) 
 
   i++;  // get past ")"
 
-  std::vector<std::unique_ptr<ASTNode>> body;
+  std::vector<std::shared_ptr<ASTNode>> body;
 
   if (tokens[i].second == "{") {
     // curly brackets; accept statements separated by semicolons
@@ -534,18 +551,18 @@ std::unique_ptr<ASTNode> parse_fun(int& i, const std::vector<PosToken>& tokens) 
     body.push_back(parse(i, tokens));
   }
 
-  return std::make_unique<ASTDefineFun>(pos, params, std::move(body));
+  return std::make_shared<ASTDefineFun>(pos, params, body);
 }
 
 
-std::unique_ptr<ASTNode> parse_call(int& i, const std::vector<PosToken>& tokens) {
+std::shared_ptr<ASTNode> parse_call(int& i, const std::vector<PosToken>& tokens) {
   int pos = tokens[i].first;
   const std::string name = tokens[i].second;
 
   i++;  // get past name
   i++;  // get past "("
 
-  std::vector<std::unique_ptr<ASTNode>> args;
+  std::vector<std::shared_ptr<ASTNode>> args;
 
   bool first = true;
   while (tokens[i].second != ")") {
@@ -562,24 +579,24 @@ std::unique_ptr<ASTNode> parse_call(int& i, const std::vector<PosToken>& tokens)
 
   i++;   // get past ")"
 
-  return std::make_unique<ASTCallNamed>(pos, name, std::move(args));
+  return std::make_shared<ASTCallNamed>(pos, name, args);
 }
 
 
-std::unique_ptr<ASTNode> parse_assign(int& i, const std::vector<PosToken>& tokens) {
+std::shared_ptr<ASTNode> parse_assign(int& i, const std::vector<PosToken>& tokens) {
   int pos = tokens[i].first;
   const std::string name = tokens[i].second;
 
   i++;  // get past name
   i++;  // get past "="
 
-  std::unique_ptr<ASTNode> value = parse(i, tokens);
+  std::shared_ptr<ASTNode> value = parse(i, tokens);
 
-  return std::make_unique<ASTAssignment>(pos, name, std::move(value));
+  return std::make_shared<ASTAssignment>(pos, name, value);
 }
 
 
-std::unique_ptr<ASTNode> parse_delete(int& i, const std::vector<PosToken>& tokens) {
+std::shared_ptr<ASTNode> parse_delete(int& i, const std::vector<PosToken>& tokens) {
   int pos = tokens[i].first;
 
   i++;  // get past "del"
@@ -591,7 +608,7 @@ std::unique_ptr<ASTNode> parse_delete(int& i, const std::vector<PosToken>& token
   i++;  // get past "("
 
   std::regex is_name("[A-Za-z_][A-Za-z_0-9]*");
-  
+
   std::string name;
   if (i < tokens.size()  &&  std::regex_match(tokens[i].second, is_name)) {
     name = tokens[i].second;
@@ -607,18 +624,18 @@ std::unique_ptr<ASTNode> parse_delete(int& i, const std::vector<PosToken>& token
   }
 
   i++;  // get past ")"
-  
-  return std::make_unique<ASTDelete>(pos, name);
+
+  return std::make_shared<ASTDelete>(pos, name);
 }
 
 
-std::unique_ptr<ASTNode> parse_id(int& i, const std::vector<PosToken>& tokens) {
+std::shared_ptr<ASTNode> parse_id(int& i, const std::vector<PosToken>& tokens) {
   int pos = tokens[i].first;
   const std::string name = tokens[i].second;
 
   i++;  // get past name
 
-  return std::make_unique<ASTIdentifier>(pos, name);
+  return std::make_shared<ASTIdentifier>(pos, name);
 }
 
 //// data //////////////////////////////////////////////////////////////////
@@ -685,6 +702,24 @@ std::shared_ptr<Object> ObjectFunctionAdd::run(
   else {
     throw error(pos, "'add' function's arguments must both be integers");
   }
+}
+
+
+std::string ObjectUserFunction::repr(int& remaining) const {
+  if (remaining < 0) {
+    return "";
+  }
+
+  remaining -= 23;
+
+  return "<user-defined function>";
+}
+
+
+std::shared_ptr<Object> ObjectUserFunction::run(
+  int pos, std::shared_ptr<Scope> scope, std::vector<std::shared_ptr<Object>> args
+) {
+
 }
 
 
