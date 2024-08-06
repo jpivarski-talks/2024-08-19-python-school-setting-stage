@@ -488,7 +488,7 @@ std::shared_ptr<ASTNode>
     return parse_list(i, tokens, line);
   }
 
-  else if (tokens[i].second == "fun") {
+  else if (tokens[i].second == "def") {
     return parse_fun(i, tokens, line);
   }
 
@@ -562,7 +562,7 @@ std::shared_ptr<ASTNode>
   parse_fun(int& i, const std::vector<PosToken>& tokens, const std::string& line) {
   int pos = tokens[i].first;
 
-  i++;  // get past "fun"
+  i++;  // get past "def"
 
   if (tokens[i].second != "(") {
     throw error(tokens[i].first, "'fun' must be followed by a list of function parameters");
@@ -1123,6 +1123,10 @@ std::shared_ptr<Object> ASTCallNamed::run(
   std::shared_ptr<Scope> scope,
   std::vector<std::shared_ptr<ASTNode>>& stack
 ) {
+  if (stack.size() == 20) {
+    throw error(stack, "recursion is too deep (probably an infinite loop)");
+  }
+
   std::shared_ptr<Object> maybe_fun = scope->get(name_, stack);
 
   std::shared_ptr<ObjectFunction> fun = std::dynamic_pointer_cast<ObjectFunction>(maybe_fun);
@@ -1190,7 +1194,7 @@ int main() {
 
   std::cout << "                      num = -123        add(x, x)   get(lst, i)   map(f, lst)" << std::endl;
   std::cout << "               oo     lst = [1, 2, 3]   mul(x, x)   len(lst)      reduce(f, lst)" << std::endl;
-  std::cout << ". . . __/\\_/\\_/`'     f = fun(x) single-expr   f = fun(x, y) { ... ; last-expr }" << std::endl;
+  std::cout << ". . . __/\\_/\\_/`'     f = def(x) single-expr   f = def(x, y) { ... ; last-expr }" << std::endl;
   std::cout << std::endl;
 
   while (true) {
