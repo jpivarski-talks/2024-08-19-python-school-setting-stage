@@ -1,11 +1,10 @@
 // Compile with:
 //
-//     c++ -std=c++11 baby-python.cpp -lreadline -o baby-python
+//     c++ -std=c++11 baby-python.cpp -o baby-python
 
 //// includes //////////////////////////////////////////////////////////////
 
-#include <readline/readline.h>
-#include <readline/history.h>
+#include "linenoise.hpp"
 #include <regex>
 #include <vector>
 #include <string>
@@ -1179,9 +1178,6 @@ std::shared_ptr<Object> ASTIdentifier::run(
 
 
 int main() {
-  using_history();
-  rl_bind_key('\t', rl_insert);
-
   std::shared_ptr<Scope> scope = std::make_shared<Scope>(nullptr);
 
   std::vector<std::shared_ptr<ASTNode>> stack;
@@ -1192,11 +1188,14 @@ int main() {
   scope->assign("map", std::make_shared<ObjectFunctionMap>(), stack);
   scope->assign("reduce", std::make_shared<ObjectFunctionReduce>(), stack);
 
-  char* line;
-  while ((line = readline(">> ")) != nullptr) {
-    if (strlen(line) > 0) {
-      add_history(line);
+  while (true) {
+    std::string line;
+    bool quit = linenoise::Readline(">> ", line);
+    if (quit) {
+      break;
     }
+
+    linenoise::AddHistory(line.c_str());
 
     std::vector<PosToken> tokens;
     int i = 0;
@@ -1240,12 +1239,10 @@ int main() {
 
       }
     }
-
-    free(line);
   }
 
   return 0;
 }
 
 
-//// The end! (Just 1300 lines.)
+//// The end! (About half as long as the line-editor.)
