@@ -1,6 +1,6 @@
 // Compile with:
 //
-//     c++ -std=c++11 baby-python.cpp -o baby-python
+//     c++ -std=c++11 -O3 baby-python.cpp -o baby-python
 
 //// includes //////////////////////////////////////////////////////////////
 
@@ -1188,6 +1188,11 @@ int main() {
   scope->assign("map", std::make_shared<ObjectFunctionMap>(), stack);
   scope->assign("reduce", std::make_shared<ObjectFunctionReduce>(), stack);
 
+  std::cout << "                      num = -123        add(x, x)   get(lst, i)   map(f, lst)" << std::endl;
+  std::cout << "               oo     lst = [1, 2, 3]   mul(x, x)   len(lst)      reduce(f, lst)" << std::endl;
+  std::cout << ". . . __/\\_/\\_/`'     f = fun(x) single-expr   f = fun(x, y) { ... ; last-expr }" << std::endl;
+  std::cout << std::endl;
+
   while (true) {
     std::string line;
     bool quit = linenoise::Readline(">> ", line);
@@ -1245,4 +1250,4 @@ int main() {
 }
 
 
-//// The end! (About half as long as the line-editor.)
+//// The end! (About half as much code as the line-editor.)
