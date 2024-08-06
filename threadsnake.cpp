@@ -1,3 +1,5 @@
+//// includes //////////////////////////////////////////////////////////////
+
 #include <readline/readline.h>
 #include <readline/history.h>
 #include <regex>
@@ -6,11 +8,6 @@
 #include <memory>
 #include <map>
 #include <iostream>
-
-// builtin functions:
-
-// map(function, list)
-// reduce(function, list, identity)
 
 
 //// types /////////////////////////////////////////////////////////////////
@@ -23,6 +20,8 @@ class Object;
 class ASTNode;
 class ASTDefineFun;
 
+
+//// Scope: which variables exist right now?
 
 class Scope {
 public:
@@ -47,6 +46,8 @@ private:
   std::unordered_map<std::string, std::shared_ptr<Object>> objects_;
 };
 
+
+//// Objects: data within the language
 
 class Object {
 public:
@@ -146,9 +147,41 @@ private:
 };
 
 
+class ObjectFunctionLen: public ObjectFunction {
+public:
+  ObjectFunctionLen(): ObjectFunction() { }
+
+  std::string repr(int& remaining) const override;
+
+  std::shared_ptr<Object> run(
+    std::shared_ptr<Scope> scope,
+    std::vector<std::shared_ptr<ASTNode>>& stack,
+    std::vector<std::shared_ptr<Object>> args
+  ) override;
+
+private:
+};
+
+
 class ObjectFunctionMap: public ObjectFunction {
 public:
   ObjectFunctionMap(): ObjectFunction() { }
+
+  std::string repr(int& remaining) const override;
+
+  std::shared_ptr<Object> run(
+    std::shared_ptr<Scope> scope,
+    std::vector<std::shared_ptr<ASTNode>>& stack,
+    std::vector<std::shared_ptr<Object>> args
+  ) override;
+
+private:
+};
+
+
+class ObjectFunctionReduce: public ObjectFunction {
+public:
+  ObjectFunctionReduce(): ObjectFunction() { }
 
   std::string repr(int& remaining) const override;
 
@@ -177,6 +210,9 @@ public:
 private:
   std::shared_ptr<ASTDefineFun> fun_;
 };
+
+
+//// ASTNodes: sequence of instructions (as a tree) to run
 
 
 class ASTNode {
@@ -404,7 +440,7 @@ private:
 };
 
 
-typedef std::pair<int, const std::string> PosToken;
+//// error handling (in parsing and while running code)
 
 
 std::string error_arrow(int position);
@@ -413,6 +449,13 @@ std::runtime_error error(
   std::vector<std::shared_ptr<ASTNode>>& stack,
   const std::string& message
 );
+
+
+//// parsing: turning the source code into ASTNodes
+
+
+typedef std::pair<int, const std::string> PosToken;
+
 
 std::vector<PosToken> tokenize(const std::string& line);
 
@@ -434,78 +477,7 @@ std::shared_ptr<ASTNode>
   parse_id(int& i, const std::vector<PosToken>& tokens, const std::string& line);
 
 
-//// main function /////////////////////////////////////////////////////////
-
-
-int main() {
-  using_history();
-  rl_bind_key('\t', rl_insert);
-
-  std::shared_ptr<Scope> scope = std::make_shared<Scope>(nullptr);
-
-  std::vector<std::shared_ptr<ASTNode>> stack;
-  scope->assign("add", std::make_shared<ObjectFunctionAdd>(), stack);
-  scope->assign("mul", std::make_shared<ObjectFunctionMul>(), stack);
-  scope->assign("get", std::make_shared<ObjectFunctionGet>(), stack);
-  scope->assign("map", std::make_shared<ObjectFunctionMap>(), stack);
-
-  char* line;
-  while ((line = readline(">> ")) != nullptr) {
-    if (strlen(line) > 0) {
-      add_history(line);
-    }
-
-    std::vector<PosToken> tokens;
-    int i = 0;
-    std::shared_ptr<ASTNode> ast;
-    try {
-      tokens = tokenize(line);
-      ast = parse(i, tokens, line);
-    }
-    catch (std::runtime_error const& exception) {
-      // failure: syntax error while tokenizing or building AST
-      std::cout << exception.what() << std::endl;
-    }
-
-    if (ast) {
-      if (i < tokens.size()) {
-        // failure: more input after complete AST
-        std::cout << error_arrow(tokens[i].first);
-        std::cout << "complete expression, but line doesn't end" << std::endl;
-      }
-      else {
-        std::vector<std::shared_ptr<ASTNode>> stack;
-        std::shared_ptr<Object> result(nullptr);
-        try {
-          result = ast->run(scope, stack);
-        }
-        catch (std::runtime_error const& exception) {
-          // failure: could not execute the code for some reason
-          std::cout << exception.what() << std::endl;
-        }
-
-        if (result) {
-          // success: print the result's repr
-
-          int remaining = MAX_REPR;
-          std::string repr = result->repr(remaining);
-          if (repr.size() > MAX_REPR) {
-            repr = repr.substr(0, MAX_REPR - 3) + "...";
-          }
-          std::cout << repr << std::endl;
-        }
-
-      }
-    }
-
-    free(line);
-  }
-
-  return 0;
-}
-
-
-//// parsing ///////////////////////////////////////////////////////////////
+//// error handling ////////////////////////////////////////////////////////
 
 
 std::string error_arrow(int position) {
@@ -531,6 +503,9 @@ std::runtime_error error(
   }
   return std::runtime_error(stack_trace + message);
 }
+
+
+//// parsing ///////////////////////////////////////////////////////////////
 
 
 std::vector<PosToken> tokenize(const std::string& line) {
@@ -794,7 +769,8 @@ std::shared_ptr<ASTNode>
   return std::make_shared<ASTIdentifier>(pos, line, name);
 }
 
-//// data //////////////////////////////////////////////////////////////////
+
+//// Scope /////////////////////////////////////////////////////////////////
 
 
 void Scope::assign(
@@ -838,6 +814,9 @@ std::shared_ptr<Object> Scope::get(
     throw error(stack, "there is no variable named '" + name + "'");
   }
 }
+
+
+//// Objects ///////////////////////////////////////////////////////////////
 
 
 std::string ObjectInt::repr(int& remaining) const {
@@ -996,6 +975,38 @@ std::shared_ptr<Object> ObjectFunctionGet::run(
 }
 
 
+std::string ObjectFunctionLen::repr(int& remaining) const {
+  if (remaining < 0) {
+    return "";
+  }
+
+  remaining -= 24;
+
+  return "<builtin function 'len'>";
+}
+
+
+std::shared_ptr<Object> ObjectFunctionLen::run(
+  std::shared_ptr<Scope> scope,
+  std::vector<std::shared_ptr<ASTNode>>& stack,
+  std::vector<std::shared_ptr<Object>> args
+) {
+  if (args.size() != 1) {
+    throw error(stack, "'len' function takes exactly 1 argument");
+  }
+
+  std::shared_ptr<ObjectList> arg0_list = std::dynamic_pointer_cast<ObjectList>(args[0]);
+
+  if (arg0_list) {
+    return std::make_shared<ObjectInt>(arg0_list->values().size());
+  }
+
+  else {
+    throw error(stack, "'len' function's argument must be a list");
+  }
+}
+
+
 std::string ObjectFunctionMap::repr(int& remaining) const {
   if (remaining < 0) {
     return "";
@@ -1022,10 +1033,10 @@ std::shared_ptr<Object> ObjectFunctionMap::run(
   if (arg0_function  &&  arg1_list) {
     std::vector<std::shared_ptr<Object>> values;
     for (int i = 0;  i < arg1_list->values().size();  i++) {
-      std::vector<std::shared_ptr<Object>> args;
-      args.push_back(arg1_list->values()[i]);
+      std::vector<std::shared_ptr<Object>> farg;
+      farg.push_back(arg1_list->values()[i]);
 
-      std::shared_ptr<Object> result = arg0_function->run(scope, stack, args);
+      std::shared_ptr<Object> result = arg0_function->run(scope, stack, farg);
 
       values.push_back(result);
     }
@@ -1035,6 +1046,65 @@ std::shared_ptr<Object> ObjectFunctionMap::run(
 
   else {
     throw error(stack, "'map' function's arguments must be a function (first) and a list (second)");
+  }
+}
+
+
+std::string ObjectFunctionReduce::repr(int& remaining) const {
+  if (remaining < 0) {
+    return "";
+  }
+
+  remaining -= 21;
+
+  return "<builtin function 'reduce'>";
+}
+
+
+std::shared_ptr<Object> ObjectFunctionReduce::run(
+  std::shared_ptr<Scope> scope,
+  std::vector<std::shared_ptr<ASTNode>>& stack,
+  std::vector<std::shared_ptr<Object>> args
+) {
+  if (args.size() == 2) {
+    std::shared_ptr<ObjectFunction> arg0_function = std::dynamic_pointer_cast<ObjectFunction>(args[0]);
+    std::shared_ptr<ObjectList> arg1_list = std::dynamic_pointer_cast<ObjectList>(args[1]);
+
+    if (arg1_list->values().size() == 0) {
+      throw error(stack, "'reduce' function's list argument can only be empty if a third argument (the initial value) is provided");
+    }
+
+    std::shared_ptr<Object> result = arg1_list->values()[0];
+
+    for (int i = 1;  i < arg1_list->values().size();  i++) {
+      std::vector<std::shared_ptr<Object>> fargs;
+      fargs.push_back(result);
+      fargs.push_back(arg1_list->values()[i]);
+
+      result = arg0_function->run(scope, stack, fargs);
+    }
+
+    return result;
+  }
+
+  else if (args.size() == 3) {
+    std::shared_ptr<ObjectFunction> arg0_function = std::dynamic_pointer_cast<ObjectFunction>(args[0]);
+    std::shared_ptr<ObjectList> arg1_list = std::dynamic_pointer_cast<ObjectList>(args[1]);
+    std::shared_ptr<Object> result = args[2];
+
+    for (int i = 0;  i < arg1_list->values().size();  i++) {
+      std::vector<std::shared_ptr<Object>> fargs;
+      fargs.push_back(result);
+      fargs.push_back(arg1_list->values()[i]);
+
+      result = arg0_function->run(scope, stack, fargs);
+    }
+
+    return result;
+  }
+
+  else {
+    throw error(stack, "'reduce' function takes either 2 or 3 arguments");
   }
 }
 
@@ -1071,6 +1141,9 @@ std::shared_ptr<Object> ObjectUserFunction::run(
   }
   return out;
 }
+
+
+//// ASTNodes //////////////////////////////////////////////////////////////
 
 
 std::shared_ptr<Object> ASTLiteralInt::run(
@@ -1120,8 +1193,10 @@ std::shared_ptr<Object> ASTCallNamed::run(
     args.push_back(args_[i]->run(scope, stack));
   }
 
+  std::shared_ptr<Scope> nested_scope = std::make_shared<Scope>(scope);
+
   stack.push_back(shared_from_this());
-  std::shared_ptr<Object> result = fun->run(scope, stack, args);
+  std::shared_ptr<Object> result = fun->run(nested_scope, stack, args);
   stack.pop_back();
 
   return result;
@@ -1154,3 +1229,79 @@ std::shared_ptr<Object> ASTIdentifier::run(
 ) {
   return scope->get(name_, stack);
 }
+
+
+//// main function /////////////////////////////////////////////////////////
+
+
+int main() {
+  using_history();
+  rl_bind_key('\t', rl_insert);
+
+  std::shared_ptr<Scope> scope = std::make_shared<Scope>(nullptr);
+
+  std::vector<std::shared_ptr<ASTNode>> stack;
+  scope->assign("add", std::make_shared<ObjectFunctionAdd>(), stack);
+  scope->assign("mul", std::make_shared<ObjectFunctionMul>(), stack);
+  scope->assign("get", std::make_shared<ObjectFunctionGet>(), stack);
+  scope->assign("len", std::make_shared<ObjectFunctionLen>(), stack);
+  scope->assign("map", std::make_shared<ObjectFunctionMap>(), stack);
+  scope->assign("reduce", std::make_shared<ObjectFunctionReduce>(), stack);
+
+  char* line;
+  while ((line = readline(">> ")) != nullptr) {
+    if (strlen(line) > 0) {
+      add_history(line);
+    }
+
+    std::vector<PosToken> tokens;
+    int i = 0;
+    std::shared_ptr<ASTNode> ast;
+    try {
+      tokens = tokenize(line);
+      ast = parse(i, tokens, line);
+    }
+    catch (std::runtime_error const& exception) {
+      // failure: syntax error while tokenizing or building AST
+      std::cout << exception.what() << std::endl;
+    }
+
+    if (ast) {
+      if (i < tokens.size()) {
+        // failure: more input after complete AST
+        std::cout << error_arrow(tokens[i].first);
+        std::cout << "complete expression, but line doesn't end" << std::endl;
+      }
+      else {
+        std::vector<std::shared_ptr<ASTNode>> stack;
+        std::shared_ptr<Object> result(nullptr);
+        try {
+          result = ast->run(scope, stack);
+        }
+        catch (std::runtime_error const& exception) {
+          // failure: could not execute the code for some reason
+          std::cout << exception.what() << std::endl;
+        }
+
+        if (result) {
+          // success: print the result's repr
+
+          int remaining = MAX_REPR;
+          std::string repr = result->repr(remaining);
+          if (repr.size() > MAX_REPR) {
+            repr = repr.substr(0, MAX_REPR - 3) + "...";
+          }
+          std::cout << repr << std::endl;
+        }
+
+      }
+    }
+
+    free(line);
+  }
+
+  return 0;
+}
+
+
+//// The end! (Just 1300 lines.)
