@@ -1,3 +1,7 @@
+// Compile with:
+//
+//     c++ -std=c++11 baby-python.cpp -lreadline -o baby-python
+
 //// includes //////////////////////////////////////////////////////////////
 
 #include <readline/readline.h>
@@ -6,7 +10,7 @@
 #include <vector>
 #include <string>
 #include <memory>
-#include <map>
+#include <unordered_map>
 #include <iostream>
 
 
@@ -228,8 +232,6 @@ public:
     std::vector<std::shared_ptr<ASTNode>>& stack
   ) = 0;
 
-  virtual void debug() = 0;
-
 private:
   int pos_;
   const std::string line_;
@@ -246,10 +248,6 @@ public:
     std::shared_ptr<Scope> scope,
     std::vector<std::shared_ptr<ASTNode>>& stack
   ) override;
-
-  void debug() override {
-    std::cout << "ASTLiteralInt(" << pos() << ", " << value_ << ")";
-  }
 
 private:
   int value_;
@@ -270,17 +268,6 @@ public:
     std::shared_ptr<Scope> scope,
     std::vector<std::shared_ptr<ASTNode>>& stack
   ) override;
-
-  void debug() override {
-    std::cout << "ASTLiteralList(" << pos() << ", {";
-    for (int i = 0;  i < values_.size();  i++) {
-      values_[i]->debug();
-      if (i + 1 != values_.size()) {
-        std::cout << ", ";
-      }
-    }
-    std::cout << "})";
-  }
 
 private:
   std::vector<std::shared_ptr<ASTNode>> values_;
@@ -307,24 +294,6 @@ public:
     std::vector<std::shared_ptr<ASTNode>>& stack
   ) override;
 
-  void debug() override {
-    std::cout << "ASTDefineFun(" << pos() << ", {";
-    for (int i = 0;  i < params_.size();  i++) {
-      std::cout << "\"" << params_[i] << "\"";
-      if (i + 1 != params_.size()) {
-        std::cout << ", ";
-      }
-    }
-    std::cout << "}, {";
-    for (int i = 0;  i < body_.size();  i++) {
-      body_[i]->debug();
-      if (i + 1 != body_.size()) {
-        std::cout << ", ";
-      }
-    }
-    std::cout << "})";
-  }
-
 private:
   const std::vector<std::string> params_;
   std::vector<std::shared_ptr<ASTNode>> body_;
@@ -349,17 +318,6 @@ public:
     std::shared_ptr<Scope> scope,
     std::vector<std::shared_ptr<ASTNode>>& stack
   ) override;
-
-  void debug() override {
-    std::cout << "ASTCallNamed(" << pos() << ", \"" << name_ << "\", {";
-    for (int i = 0;  i < args_.size();  i++) {
-      args_[i]->debug();
-      if (i + 1 != args_.size()) {
-        std::cout << ", ";
-      }
-    }
-    std::cout << "}): " << line();
-  }
 
 private:
   const std::string name_;
@@ -386,12 +344,6 @@ public:
     std::vector<std::shared_ptr<ASTNode>>& stack
   ) override;
 
-  void debug() override {
-    std::cout << "ASTAssignment(" << pos() << ", \"" << name_ << "\", ";
-    value_->debug();
-    std::cout << ")";
-  }
-
 private:
   const std::string name_;
   std::shared_ptr<ASTNode> value_;
@@ -410,10 +362,6 @@ public:
     std::vector<std::shared_ptr<ASTNode>>& stack
   ) override;
 
-  void debug() override {
-    std::cout << "ASTDelete(" << pos() << ", \"" << name_ << "\")";
-  }
-
 private:
   const std::string name_;
 };
@@ -430,10 +378,6 @@ public:
     std::shared_ptr<Scope> scope,
     std::vector<std::shared_ptr<ASTNode>>& stack
   ) override;
-
-  void debug() override {
-    std::cout << "ASTIdentifier(" << pos() << ", \"" << name_ << "\")";
-  }
 
 private:
   const std::string name_;
@@ -509,7 +453,7 @@ std::runtime_error error(
 
 
 std::vector<PosToken> tokenize(const std::string& line) {
-  std::regex whitespace("\\s*");
+  std::regex whitespaces("\\s*");
   std::regex token_regex("(-?[0-9]+|[A-Za-z_][A-Za-z_0-9]*|\\(|\\)|\\[|\\]|,|;|\\{|\\}|=)");
   auto tokens_begin = std::sregex_iterator(line.begin(), line.end(), token_regex);
   auto tokens_end = std::sregex_iterator();
@@ -520,7 +464,7 @@ std::vector<PosToken> tokenize(const std::string& line) {
   for (auto token_iter = tokens_begin;  token_iter != tokens_end;  ++token_iter) {
     // text between tokens must be only whitespace
     std::string between = line.substr(previous, token_iter->position() - previous);
-    if (!std::regex_match(between, whitespace)) {
+    if (!std::regex_match(between, whitespaces)) {
       throw error(previous, "unexpected characters");
     }
     previous = token_iter->position() + token_iter->length();
