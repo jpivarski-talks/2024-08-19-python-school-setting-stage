@@ -9,15 +9,8 @@
 
 // builtin functions:
 
-// [x, y]
-// fun(args) { stmt ; stmt ; stmt }
-// del(name)
-// get(list, index)
-// add(x, y)  --  x and y can both be int or both be lists
-// mul(x, y)
 // map(function, list)
 // reduce(function, list, identity)
-// x = ...
 
 
 //// types /////////////////////////////////////////////////////////////////
@@ -82,6 +75,8 @@ class ObjectList: public Object {
 public:
   ObjectList(const std::vector<std::shared_ptr<Object>>& values): values_(values), Object() { }
 
+  const std::vector<std::shared_ptr<Object>> values() const { return values_; }
+
   std::string repr(int& remaining) const override;
 
 private:
@@ -106,6 +101,54 @@ private:
 class ObjectFunctionAdd: public ObjectFunction {
 public:
   ObjectFunctionAdd(): ObjectFunction() { }
+
+  std::string repr(int& remaining) const override;
+
+  std::shared_ptr<Object> run(
+    std::shared_ptr<Scope> scope,
+    std::vector<std::shared_ptr<ASTNode>>& stack,
+    std::vector<std::shared_ptr<Object>> args
+  ) override;
+
+private:
+};
+
+
+class ObjectFunctionMul: public ObjectFunction {
+public:
+  ObjectFunctionMul(): ObjectFunction() { }
+
+  std::string repr(int& remaining) const override;
+
+  std::shared_ptr<Object> run(
+    std::shared_ptr<Scope> scope,
+    std::vector<std::shared_ptr<ASTNode>>& stack,
+    std::vector<std::shared_ptr<Object>> args
+  ) override;
+
+private:
+};
+
+
+class ObjectFunctionGet: public ObjectFunction {
+public:
+  ObjectFunctionGet(): ObjectFunction() { }
+
+  std::string repr(int& remaining) const override;
+
+  std::shared_ptr<Object> run(
+    std::shared_ptr<Scope> scope,
+    std::vector<std::shared_ptr<ASTNode>>& stack,
+    std::vector<std::shared_ptr<Object>> args
+  ) override;
+
+private:
+};
+
+
+class ObjectFunctionMap: public ObjectFunction {
+public:
+  ObjectFunctionMap(): ObjectFunction() { }
 
   std::string repr(int& remaining) const override;
 
@@ -402,6 +445,9 @@ int main() {
 
   std::vector<std::shared_ptr<ASTNode>> stack;
   scope->assign("add", std::make_shared<ObjectFunctionAdd>(), stack);
+  scope->assign("mul", std::make_shared<ObjectFunctionMul>(), stack);
+  scope->assign("get", std::make_shared<ObjectFunctionGet>(), stack);
+  scope->assign("map", std::make_shared<ObjectFunctionMap>(), stack);
 
   char* line;
   while ((line = readline(">> ")) != nullptr) {
@@ -860,12 +906,135 @@ std::shared_ptr<Object> ObjectFunctionAdd::run(
   std::shared_ptr<ObjectInt> arg0_int = std::dynamic_pointer_cast<ObjectInt>(args[0]);
   std::shared_ptr<ObjectInt> arg1_int = std::dynamic_pointer_cast<ObjectInt>(args[1]);
 
+  std::shared_ptr<ObjectList> arg0_list = std::dynamic_pointer_cast<ObjectList>(args[0]);
+  std::shared_ptr<ObjectList> arg1_list = std::dynamic_pointer_cast<ObjectList>(args[1]);
+
   if (arg0_int  &&  arg1_int) {
     return std::make_shared<ObjectInt>(arg0_int->value() + arg1_int->value());
   }
 
+  else if (arg0_list  &&  arg1_list) {
+    std::vector<std::shared_ptr<Object>> values;
+    for (int i = 0;  i < arg0_list->values().size();  i++) {
+      values.push_back(arg0_list->values()[i]);
+    }
+    for (int i = 0;  i < arg1_list->values().size();  i++) {
+      values.push_back(arg1_list->values()[i]);
+    }
+    return std::make_shared<ObjectList>(values);
+  }
+
   else {
-    throw error(stack, "'add' function's arguments must both be integers");
+    throw error(stack, "'add' function's arguments must both be integers or both be lists");
+  }
+}
+
+
+std::string ObjectFunctionMul::repr(int& remaining) const {
+  if (remaining < 0) {
+    return "";
+  }
+
+  remaining -= 24;
+
+  return "<builtin function 'mul'>";
+}
+
+
+std::shared_ptr<Object> ObjectFunctionMul::run(
+  std::shared_ptr<Scope> scope,
+  std::vector<std::shared_ptr<ASTNode>>& stack,
+  std::vector<std::shared_ptr<Object>> args
+) {
+  if (args.size() != 2) {
+    throw error(stack, "'mul' function takes exactly 2 arguments");
+  }
+
+  std::shared_ptr<ObjectInt> arg0_int = std::dynamic_pointer_cast<ObjectInt>(args[0]);
+  std::shared_ptr<ObjectInt> arg1_int = std::dynamic_pointer_cast<ObjectInt>(args[1]);
+
+  if (arg0_int  &&  arg1_int) {
+    return std::make_shared<ObjectInt>(arg0_int->value() * arg1_int->value());
+  }
+
+  else {
+    throw error(stack, "'mul' function's arguments must both be integers");
+  }
+}
+
+
+std::string ObjectFunctionGet::repr(int& remaining) const {
+  if (remaining < 0) {
+    return "";
+  }
+
+  remaining -= 24;
+
+  return "<builtin function 'get'>";
+}
+
+
+std::shared_ptr<Object> ObjectFunctionGet::run(
+  std::shared_ptr<Scope> scope,
+  std::vector<std::shared_ptr<ASTNode>>& stack,
+  std::vector<std::shared_ptr<Object>> args
+) {
+  if (args.size() != 2) {
+    throw error(stack, "'get' function takes exactly 2 arguments");
+  }
+
+  std::shared_ptr<ObjectList> arg0_list = std::dynamic_pointer_cast<ObjectList>(args[0]);
+  std::shared_ptr<ObjectInt> arg1_int = std::dynamic_pointer_cast<ObjectInt>(args[1]);
+
+  if (arg0_list  &&  arg1_int) {
+    return arg0_list->values()[arg1_int->value()];
+  }
+
+  else {
+    throw error(stack, "'get' function's arguments must be a list (first) and an integer (second)");
+  }
+}
+
+
+std::string ObjectFunctionMap::repr(int& remaining) const {
+  if (remaining < 0) {
+    return "";
+  }
+
+  remaining -= 24;
+
+  return "<builtin function 'map'>";
+}
+
+
+std::shared_ptr<Object> ObjectFunctionMap::run(
+  std::shared_ptr<Scope> scope,
+  std::vector<std::shared_ptr<ASTNode>>& stack,
+  std::vector<std::shared_ptr<Object>> args
+) {
+  if (args.size() != 2) {
+    throw error(stack, "'map' function takes exactly 2 arguments");
+  }
+
+  std::shared_ptr<ObjectFunction> arg0_function = std::dynamic_pointer_cast<ObjectFunction>(args[0]);
+  std::shared_ptr<ObjectList> arg1_list = std::dynamic_pointer_cast<ObjectList>(args[1]);
+
+  if (arg0_function  &&  arg1_list) {
+    std::vector<std::shared_ptr<Object>> values;
+    for (int i = 0;  i < arg1_list->values().size();  i++) {
+      std::vector<std::shared_ptr<Object>> args;
+      args.push_back(arg1_list->values()[i]);
+
+      std::shared_ptr<Object> result = arg0_function->run(scope, stack, args);
+
+      values.push_back(result);
+    }
+
+    return std::make_shared<ObjectList>(values);
+  }
+
+  else {
+    throw error(stack, "'map' function's arguments must be a function (first) and a list (second)");
   }
 }
 
