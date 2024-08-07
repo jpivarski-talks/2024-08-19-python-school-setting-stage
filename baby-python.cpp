@@ -80,7 +80,7 @@ class ObjectList: public Object {
 public:
   ObjectList(const std::vector<std::shared_ptr<Object>>& values): values_(values), Object() { }
 
-  const std::vector<std::shared_ptr<Object>> values() const { return values_; }
+  const std::vector<std::shared_ptr<Object>>& values() const { return values_; }
 
   std::string repr(int& remaining) const override;
 
@@ -225,7 +225,7 @@ public:
   virtual ~ASTNode() = default;
 
   int pos() const { return pos_; }
-  const std::string line() const { return line_; }
+  const std::string& line() const { return line_; }
 
   virtual std::shared_ptr<Object> run(
     std::shared_ptr<Scope> scope,
@@ -259,7 +259,7 @@ public:
   ASTLiteralList(
     int pos,
     const std::string& line,
-    std::vector<std::shared_ptr<ASTNode>> values
+    std::vector<std::shared_ptr<ASTNode>>& values
   )
     : values_(values)
     , ASTNode(pos, line) { }
@@ -280,14 +280,14 @@ public:
    int pos,
    const std::string& line,
    const std::vector<std::string>& params,
-   std::vector<std::shared_ptr<ASTNode>> body
+   std::vector<std::shared_ptr<ASTNode>>& body
   )
     : params_(params)
     , body_(body)
     , ASTNode(pos, line) { }
 
-  const std::vector<std::string> params() { return params_; }
-  std::vector<std::shared_ptr<ASTNode>> body() { return body_; }
+  const std::vector<std::string>& params() { return params_; }
+  std::vector<std::shared_ptr<ASTNode>>& body() { return body_; }
 
   std::shared_ptr<Object> run(
     std::shared_ptr<Scope> scope,
@@ -312,7 +312,7 @@ public:
     , args_(args)
     , ASTNode(pos, line) { }
 
-  const std::string name() const { return name_; }
+  const std::string& name() const { return name_; }
 
   std::shared_ptr<Object> run(
     std::shared_ptr<Scope> scope,
@@ -337,7 +337,7 @@ public:
     , value_(value)
     , ASTNode(pos, line) { }
 
-  const std::string name() const { return name_; }
+  const std::string& name() const { return name_; }
 
   std::shared_ptr<Object> run(
     std::shared_ptr<Scope> scope,
@@ -355,7 +355,7 @@ public:
   ASTDelete(int pos, const std::string& line, const std::string& name)
     : name_(name), ASTNode(pos, line) { }
 
-  const std::string name() const { return name_; }
+  const std::string& name() const { return name_; }
 
   std::shared_ptr<Object> run(
     std::shared_ptr<Scope> scope,
@@ -372,7 +372,7 @@ public:
   ASTIdentifier(int pos, const std::string& line, const std::string& name)
     : name_(name), ASTNode(pos, line) { }
 
-  const std::string name() const { return name_; }
+  const std::string& name() const { return name_; }
 
   std::shared_ptr<Object> run(
     std::shared_ptr<Scope> scope,
@@ -1256,6 +1256,11 @@ int main(int argc, char** argv) {
     catch (std::runtime_error const& exception) {
       // syntax error while tokenizing or building AST
       std::cout << exception.what() << std::endl;
+    }
+
+    if (tokens.size() == 1  &&  tokens[0].second == "exit") {
+      linenoise::SaveHistory(".baby-python-history");
+      break;
     }
 
     if (ast) {
