@@ -18,7 +18,7 @@
 
 
 const int MAX_REPR = 80;
-
+const int MAX_RECURSION = 20;
 
 class Object;
 class ASTNode;
@@ -1124,7 +1124,7 @@ std::shared_ptr<Object> ASTCallNamed::run(
   std::shared_ptr<Scope> scope,
   std::vector<std::shared_ptr<ASTNode>>& stack
 ) {
-  if (stack.size() == 20) {
+  if (stack.size() == MAX_RECURSION) {
     throw error(stack, "recursion is too deep (probably an infinite loop)");
   }
 
