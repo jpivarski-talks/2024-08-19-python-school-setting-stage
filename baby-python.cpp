@@ -11,8 +11,8 @@
 #include <string>
 #include <memory>
 #include <unordered_map>
+#include <chrono>
 #include <iostream>
-
 
 //// types /////////////////////////////////////////////////////////////////
 
@@ -1274,12 +1274,18 @@ int main(int argc, char** argv) {
         // create a new stack and attempt to run the AST
         std::vector<std::shared_ptr<ASTNode>> stack;
         std::shared_ptr<Object> result(nullptr);
+
+        auto start = std::chrono::high_resolution_clock::now();
+
         try {
           result = ast->run(scope, stack);
         }
         catch (std::runtime_error const& exception) {
           std::cout << exception.what() << std::endl;
         }
+
+        auto stop = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double> duration = stop - start;
 
         if (result) {
           // execution was successful! print the result!
@@ -1289,6 +1295,7 @@ int main(int argc, char** argv) {
             repr = repr.substr(0, MAX_REPR - 3) + "...";
           }
           std::cout << repr << std::endl;
+          std::cout << "(" << duration.count() << " seconds)" << std::endl;
         }
 
       }
