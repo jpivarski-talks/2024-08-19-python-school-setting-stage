@@ -5,6 +5,7 @@
 //// includes //////////////////////////////////////////////////////////////
 
 #include "linenoise.hpp"
+#include <fstream>
 #include <regex>
 #include <vector>
 #include <string>
@@ -1181,9 +1182,11 @@ std::shared_ptr<Object> ASTIdentifier::run(
 //// main function /////////////////////////////////////////////////////////
 
 
-int main() {
+int main(int argc, char** argv) {
+  // create a variable Scope
   std::shared_ptr<Scope> scope = std::make_shared<Scope>(nullptr);
 
+  // and put some built-ins in it
   std::vector<std::shared_ptr<ASTNode>> stack;
   scope->assign("add", std::make_shared<ObjectFunctionAdd>(), stack);
   scope->assign("mul", std::make_shared<ObjectFunctionMul>(), stack);
@@ -1192,52 +1195,89 @@ int main() {
   scope->assign("map", std::make_shared<ObjectFunctionMap>(), stack);
   scope->assign("reduce", std::make_shared<ObjectFunctionReduce>(), stack);
 
-  std::cout << "                      num = -123        add(x, x)   get(lst, i)   map(f, lst)" << std::endl;
-  std::cout << "               oo     lst = [1, 2, 3]   mul(x, x)   len(lst)      reduce(f, lst)" << std::endl;
-  std::cout << ". . . __/\\_/\\_/`'     f = def(x) single-expr   f = def(x, y) { ... ; last-expr }" << std::endl;
+  // use the command-line arguments to add some data from files
+  for (int argi = 1;  argi < argc;  argi++) {
+    std::string arg = argv[argi];
+
+    std::string::size_type pos = arg.find('=');
+    if (arg.find('=') == std::string::npos) {
+      std::cout << "arguments must be separated by '=', as in: data=/path/to/data.int32" << std::endl;
+      return -1;
+    }
+
+    std::string var_name = arg.substr(0, pos);
+    std::string file_name = arg.substr(pos + 1, -1);
+
+    std::ifstream file(file_name, std::ios::binary);
+    if (!file) {
+      std::cout << "could not open file: " << file_name << std::endl;
+      return -1;
+    }
+
+    std::vector<std::shared_ptr<Object>> values;
+    int32_t raw;
+    while (file.read(reinterpret_cast<char*>(&raw), sizeof(raw))) {
+      values.push_back(std::make_shared<ObjectInt>(raw));
+    }
+
+    file.close();
+
+    scope->assign(var_name, std::make_shared<ObjectList>(values), stack);
+  }
+
+  // baby-python startup screen!
+  std::cout << "                     num = -123        add(x, x)   get(lst, i)   map(f, lst)" << std::endl;
+  std::cout << "               oo    lst = [1, 2, 3]   mul(x, x)   len(lst)      reduce(f, lst)" << std::endl;
+  std::cout << ". . . __/\\_/\\_/`'    f = def(x) single-expr   f = def(x, y) { ... ; last-expr }" << std::endl;
   std::cout << std::endl;
 
+  linenoise::LoadHistory(".baby-python-history");
+
+  // start the REPL (Read Evaluate Print Loop)
   while (true) {
     std::string line;
     bool quit = linenoise::Readline(">> ", line);
     if (quit) {
+      linenoise::SaveHistory(".baby-python-history");
       break;
     }
-
     linenoise::AddHistory(line.c_str());
 
+    // parse the line in two steps
     std::vector<PosToken> tokens;
     int i = 0;
     std::shared_ptr<ASTNode> ast;
     try {
+      // (1) break the whole string into a list of tokens
       tokens = tokenize(line);
+      // (2) build an AST tree from the tokens
       ast = parse(i, tokens, line);
     }
     catch (std::runtime_error const& exception) {
-      // failure: syntax error while tokenizing or building AST
+      // syntax error while tokenizing or building AST
       std::cout << exception.what() << std::endl;
     }
 
     if (ast) {
       if (i < tokens.size()) {
-        // failure: more input after complete AST
+        // unused tokens after building a whole AST is an error
         std::cout << error_arrow(tokens[i].first);
         std::cout << "complete expression, but line doesn't end" << std::endl;
       }
+
       else {
+        // create a new stack and attempt to run the AST
         std::vector<std::shared_ptr<ASTNode>> stack;
         std::shared_ptr<Object> result(nullptr);
         try {
           result = ast->run(scope, stack);
         }
         catch (std::runtime_error const& exception) {
-          // failure: could not execute the code for some reason
           std::cout << exception.what() << std::endl;
         }
 
         if (result) {
-          // success: print the result's repr
-
+          // execution was successful! print the result!
           int remaining = MAX_REPR;
           std::string repr = result->repr(remaining);
           if (repr.size() > MAX_REPR) {
