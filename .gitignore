@@ -6,3 +6,10 @@ just-functional
 commands.txt
 data.int32
 __pycache__
+make-talk/main.aux
+make-talk/main.log
+make-talk/main.nav
+make-talk/main.out
+make-talk/main.pdf
+make-talk/main.snm
+make-talk/main.toc
