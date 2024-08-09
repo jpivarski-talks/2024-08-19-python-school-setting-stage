@@ -155,6 +155,33 @@
 \end{center}
 \end{frame}
 
+\begin{frame}{\mbox{ }}
+\vspace{0.1 cm}
+\LARGE
+\begin{center}
+\textcolor{darkblue}{Languages with dynamic features make the computer do more things at runtime; those things take time.}
+\end{center}
+
+\vspace{0.1 cm}
+\begin{center}
+\includegraphics[width=0.7\linewidth]{img/hurdle9.jpg}
+\end{center}
+\end{frame}
+
+\begin{frame}{Caveat}
+\vspace{0.5 cm}
+\Large
+Some language features are static, compile-time abstractions, which provide generalizability/portability \underline{\it and} speed.
+
+\vspace{0.25 cm}
+\large
+\begin{itemize}
+\item<2-> Modern compilers are better at generating optimized machine code than most humans, taking full advantage of data locality, loop unrolling, SIMD vectorization, pipelining, etc.
+\item<3-> Rust's borrow checker eliminates all memory leaks and double-free segfaults before the code runs, albeit by pointing them out and making the developer fix them manually.
+\item<4-> Julia delays the compilation step, Just-In-Time or JIT-compilation, allowing developers to work with abstract code up to the point when it needs to run. (Many Python tools do this, too.)
+\end{itemize}
+\end{frame}
+
 \begin{frame}{Dynamic language features}
 \vspace{0.2 cm}
 \begin{center}
@@ -213,12 +240,27 @@ Python               & $\surd$  & $\surd$                         & $\surd$ & $\
 \LARGE
 \begin{center}
 \textcolor{darkblue}{In scientific programming and data analysis, \\ the developer \underline{\it is} the user.}
+
+\vspace{1 cm}
+\uncover<2->{\textcolor{darkblue}{The time it takes you to write the code \\ is part of the optimization.}}
+
 \end{center}
 \end{frame}
 
-\begin{frame}{\mbox{ }}
-
+\begin{frame}{Long history of attempts to use fast compiled code in Python}
+\vspace{0.25 cm}
+\includegraphics[width=\linewidth]{img/history-of-bindings-2.pdf}
 \end{frame}
+
+\begin{frame}{\mbox{ }}
+\LARGE
+\begin{center}
+\textcolor{darkblue}{This week, you'll see }
+\end{center}
+\end{frame}
+
+
+
 
 
 
