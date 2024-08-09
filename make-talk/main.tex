@@ -128,7 +128,7 @@
 \vspace{0.5 cm}
 \LARGE
 \begin{center}
-\textcolor{darkblue}{Tension between generalizability/portability and speed}
+\textcolor{darkblue}{Tension between generalizability/portability and speed:}
 \end{center}
 
 \vspace{0.5 cm}
@@ -141,9 +141,10 @@
 \uncover<3->{We want to write fast code so that we can analyze more data or perform more studies on it.}
 \end{columns}
 
+\Large
 \vspace{0.5 cm}
 \begin{center}
-\uncover<4->{Why can't we have it all?}
+\uncover<4->{\textcolor{darkorange}{\bf Why can't we have it all?}}
 \end{center}
 \end{frame}
 
@@ -153,6 +154,72 @@
 \includegraphics[width=0.85\linewidth]{img/benchmark-games-2023.pdf}
 \end{center}
 \end{frame}
+
+\begin{frame}{Dynamic language features}
+\vspace{0.2 cm}
+\begin{center}
+\includegraphics[width=0.67\linewidth]{img/dynamic-features.pdf}
+\end{center}
+\end{frame}
+
+\begin{frame}{Dynamic language features}
+\begin{columns}
+\column{1.15\linewidth}
+\begin{center}\renewcommand{\arraystretch}{1.25}
+\begin{tabular}{l | c | c | c | c | c | c | c}
+                     & alloc   & reference count              & GC      & eval    & VM      & type reflect & scheduling \\\hline
+Fortran 77           &          &                                 &         &         &         &         &            \\
+C                    & $\surd$  &                                 &         &         &         &         &            \\
+C++                  & $\surd$  & {\small\mintinline{c++}{shared_ptr<T>}} &         &         &         & vtable only  & std library \\
+C++ with ROOT        & $\surd$  & {\small\mintinline{c++}{shared_ptr<T>}} &         & $\surd$ &         & $\surd$ & $\surd$     \\
+Rust                 & $\surd$  & {\small\mintinline{c++}{Rc<T>}}         &         &         &         & vtable only  & $\surd$ \\
+Swift                & $\surd$  & $\surd$                         &         &         &         & vtable only  & $\surd$     \\
+Julia                & $\surd$  &                                 & $\surd$ & $\surd$ &         & $\surd$ & std macros  \\
+Go                   & $\surd$  &                                 & $\surd$ &         &         & vtable only  & $\surd$     \\
+Java (JVM languages) & $\surd$  &                                 & $\surd$ &         & $\surd$ & $\surd$ & std library \\
+Lua                  & $\surd$  &                                 & $\surd$ & $\surd$ & $\surd$ & $\surd$ &             \\
+Python               & $\surd$  & $\surd$                         & $\surd$ & $\surd$ & $\surd$ & $\surd$ & $\surd$     \\
+\end{tabular}
+\end{center}
+\end{columns}
+\end{frame}
+
+\begin{frame}{Why use a language with these dynamic features, anyway?}
+\vspace{0.35 cm}
+\begin{center}
+\only<1>{\includegraphics[width=0.7\linewidth]{img/commute-by-plane.png}}\only<2>{\vspace{-0.2 cm}\includegraphics[width=0.8\linewidth]{img/analytics-by-language.pdf}}
+\end{center}
+\end{frame}
+
+\begin{frame}{\mbox{ }}
+\LARGE
+\begin{center}
+\textcolor{darkblue}{Dynamic language features are for \underline{\it developers!}}
+\end{center}
+
+\vspace{0.3 cm}
+\large
+\begin{itemize}\setlength{\itemsep}{0.2 cm}
+\item<2-> \textcolor{darkblue}{malloc, new \& delete:} make objects on the fly, arbitrary graph relationships
+\item<3-> \textcolor{darkblue}{garbage collectors:} eliminate all memory leaks and double-free segfaults
+\item<4-> \textcolor{darkblue}{eval, macros, JIT-compilation:} deal with information that arrives ``late''
+\item<5-> \textcolor{darkblue}{virtual machines:} portability across hardware architectures
+\item<6-> \textcolor{darkblue}{runtime type inspection, manipulation:} make runtime choices based on types
+\item<7-> \textcolor{darkblue}{parallel \& distributed computing abstractions:} let a scheduler worry about ordering tasks by data dependencies
+\end{itemize}
+\end{frame}
+
+\begin{frame}{\mbox{ }}
+\LARGE
+\begin{center}
+\textcolor{darkblue}{In scientific programming and data analysis, \\ the developer \underline{\it is} the user.}
+\end{center}
+\end{frame}
+
+\begin{frame}{\mbox{ }}
+
+\end{frame}
+
 
 
 \end{document}
