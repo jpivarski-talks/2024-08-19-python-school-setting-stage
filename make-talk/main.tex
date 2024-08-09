@@ -255,13 +255,76 @@ Python               & $\surd$  & $\surd$                         & $\surd$ & $\
 \begin{frame}{\mbox{ }}
 \LARGE
 \begin{center}
-\textcolor{darkblue}{This week, you'll see }
+\textcolor{darkblue}{This week, you'll see how to use dynamic features \\ when useful and how to avoid them when necessary.}
 \end{center}
 \end{frame}
 
+\begin{frame}[fragile]{\mbox{ }}
+\LARGE
+\begin{center}
+\textcolor{darkblue}{But first, let's see what an implementation looks like.}
+\end{center}
 
+\vspace{1 cm}
+\scriptsize
+\begin{verbatim}
+% c++ -std=c++11 -O3 baby-python.cpp -o baby-python
+% ./baby-python 
+                     num = -123        add(x, x)   get(lst, i)   map(f, lst)
+               oo    lst = [1, 2, 3]   mul(x, x)   len(lst)      reduce(f, lst)
+. . . __/\_/\_/`'    f = def(x) single-expr   f = def(x, y) { ... ; last-expr }
 
+>>
+\end{verbatim}
+\end{frame}
 
+\begin{frame}{\mbox{ }}
+\LARGE
+\begin{center}
+\textcolor{darkblue}{\bf BACKUP}
+\end{center}
+\end{frame}
 
+\begin{frame}{\mbox{ }}
+\vspace{0.5 cm}
+\begin{center}
+\only<1>{\includegraphics[width=0.8\linewidth]{img/python-list-layout.pdf}}\only<2>{\includegraphics[width=0.8\linewidth]{img/python-array-layout.pdf}}
+\end{center}
+\end{frame}
+
+\begin{frame}{\mbox{ }}
+\begin{center}
+\includegraphics[width=0.8\linewidth]{img/Numpy_Python_Cheat_Sheet.pdf}
+\end{center}
+\end{frame}
+
+\begin{frame}{\mbox{ }}
+\vspace{0.5 cm}
+\begin{center}
+\includegraphics[width=0.9\linewidth]{img/slow-fast-imperative-vectorized.pdf}
+\end{center}
+\end{frame}
+
+\begin{frame}{\mbox{ }}
+\vspace{0.75 cm}
+\begin{center}
+\includegraphics[width=0.6\linewidth]{img/horizontal-and-vertical-scaling.pdf}
+\end{center}
+\end{frame}
+
+\begin{frame}{Lukas Taylor's summary talk at CHEP 2001}
+\vspace{0.2 cm}
+\begin{center}
+\includegraphics[width=0.8\linewidth]{img/chep-2001-python.png}
+\end{center}
+\end{frame}
+
+\begin{frame}{Adoption of Python for CMS analysis}
+\vspace{0.2 cm}
+\begin{columns}
+\column{1.15\linewidth}
+\only<1>{\includegraphics[width=\linewidth]{img/github-language-cmsswseed.pdf}}\only<2>{\includegraphics[width=\linewidth]{img/github-package-cmsswseed.pdf}}
+\end{columns}
+\end{frame}
 
 \end{document}
