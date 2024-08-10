@@ -15,3 +15,6 @@ make-talk/main.snm
 make-talk/main.toc
 make-talk/main.vrb
 make-talk/_minted-main
+example.c
+example.o
+libexample.so
