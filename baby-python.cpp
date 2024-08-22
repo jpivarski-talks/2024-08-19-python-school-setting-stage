@@ -148,6 +148,20 @@ private:
 };
 
 
+class ObjectFunctionEquals: public ObjectFunction {
+public:
+  ObjectFunctionEquals(): ObjectFunction() { }
+
+  std::string repr(int& remaining) const override;
+
+  std::shared_ptr<Object> run(
+    std::shared_ptr<Scope> scope,
+    std::vector<std::shared_ptr<ASTNode>>& stack,
+    std::vector<std::shared_ptr<Object>> args
+  ) override;
+};
+
+
 class ObjectFunctionGet: public ObjectFunction {
 public:
   ObjectFunctionGet(): ObjectFunction() { }
@@ -951,6 +965,71 @@ std::shared_ptr<Object> ObjectFunctionMul::run(
 }
 
 
+std::string ObjectFunctionEquals::repr(int& remaining) const {
+  if (remaining < 0) {
+    return "";
+  }
+
+  remaining -= 27;
+
+  return "<builtin function 'equals'>";
+}
+
+
+bool compare_objects(std::shared_ptr<Object> arg0, std::shared_ptr<Object> arg1) {
+  std::shared_ptr<ObjectInt> arg0_int = std::dynamic_pointer_cast<ObjectInt>(arg0);
+  std::shared_ptr<ObjectInt> arg1_int = std::dynamic_pointer_cast<ObjectInt>(arg1);
+
+  std::shared_ptr<ObjectBool> arg0_bool = std::dynamic_pointer_cast<ObjectBool>(arg0);
+  std::shared_ptr<ObjectBool> arg1_bool = std::dynamic_pointer_cast<ObjectBool>(arg1);
+
+  std::shared_ptr<ObjectList> arg0_list = std::dynamic_pointer_cast<ObjectList>(arg0);
+  std::shared_ptr<ObjectList> arg1_list = std::dynamic_pointer_cast<ObjectList>(arg1);
+
+  if (arg0_int && arg1_int) {
+    return arg0_int->value() == arg1_int->value();
+  }
+
+  else if (arg0_bool && arg1_bool) {
+    return arg0_bool->value() == arg1_bool->value();
+  }
+
+  else if (arg0_list && arg1_list) {
+    // element-wise equality
+    if (arg0_list->values().size() != arg1_list->values().size()) {
+      return false;
+    } else {
+      for (int i = 0; i < arg0_list->values().size(); i++) {
+        // compare every element of the list
+        if (!compare_objects(arg0_list->values()[i], arg1_list->values()[i])) {
+          return false;
+        }
+      }
+      // no elements were different
+      return true;
+    }
+  }
+
+  else {
+    // types are different
+    return false;
+  }
+}
+
+
+std::shared_ptr<Object> ObjectFunctionEquals::run(
+  std::shared_ptr<Scope> scope,
+  std::vector<std::shared_ptr<ASTNode>>& stack,
+  std::vector<std::shared_ptr<Object>> args
+) {
+  if (args.size() != 2) {
+    throw error(stack, "'equals' function takes exactly 2 arguments");
+  }
+
+  return std::make_shared<ObjectBool>(compare_objects(args[0], args[1]));
+}
+
+
 std::string ObjectFunctionGet::repr(int& remaining) const {
   if (remaining < 0) {
     return "";
@@ -1261,6 +1340,7 @@ int main(int argc, char** argv) {
   std::vector<std::shared_ptr<ASTNode>> stack;
   scope->assign("add", std::make_shared<ObjectFunctionAdd>(), stack);
   scope->assign("mul", std::make_shared<ObjectFunctionMul>(), stack);
+  scope->assign("equals", std::make_shared<ObjectFunctionEquals>(), stack);
   scope->assign("get", std::make_shared<ObjectFunctionGet>(), stack);
   scope->assign("len", std::make_shared<ObjectFunctionLen>(), stack);
   scope->assign("map", std::make_shared<ObjectFunctionMap>(), stack);
