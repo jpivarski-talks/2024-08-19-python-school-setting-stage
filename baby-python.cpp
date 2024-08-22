@@ -76,6 +76,19 @@ private:
 };
 
 
+class ObjectBool: public Object {
+public:
+  ObjectBool(bool value): value_(value), Object() { }
+
+  bool value() const { return value_; }
+
+  std::string repr(int& remaining) const override;
+
+private:
+  bool value_;
+};
+
+
 class ObjectList: public Object {
 public:
   ObjectList(const std::vector<std::shared_ptr<Object>>& values): values_(values), Object() { }
@@ -254,6 +267,23 @@ private:
 };
 
 
+class ASTLiteralBool: public ASTNode {
+public:
+  ASTLiteralBool(int pos, const std::string& line, bool value)
+    : value_(value), ASTNode(pos, line) { }
+
+    bool value() const { return value_; }
+
+    std::shared_ptr<Object> run(
+      std::shared_ptr<Scope> scope,
+      std::vector<std::shared_ptr<ASTNode>>& stack
+    ) override;
+
+private:
+  bool value_;
+};
+
+
 class ASTLiteralList: public ASTNode {
 public:
   ASTLiteralList(
@@ -408,6 +438,8 @@ std::shared_ptr<ASTNode>
 std::shared_ptr<ASTNode>
   parse_int(int& i, const std::vector<PosToken>& tokens, const std::string& line);
 std::shared_ptr<ASTNode>
+  parse_bool(int& i, const std::vector<PosToken>& tokens, const std::string& line);
+std::shared_ptr<ASTNode>
   parse_list(int& i, const std::vector<PosToken>& tokens, const std::string& line);
 std::shared_ptr<ASTNode>
   parse_fun(int& i, const std::vector<PosToken>& tokens, const std::string& line);
@@ -497,6 +529,10 @@ std::shared_ptr<ASTNode>
     return parse_delete(i, tokens, line);
   }
 
+  else if (tokens[i].second == "True" || tokens[i].second == "False") {
+    return parse_bool(i, tokens, line);
+  }
+
   else if (std::regex_match(tokens[i].second, is_number)) {
     return parse_int(i, tokens, line);
   }
@@ -529,6 +565,17 @@ std::shared_ptr<ASTNode>
   i++;  // get past int
 
   return std::make_shared<ASTLiteralInt>(pos, line, value);
+}
+
+
+std::shared_ptr<ASTNode>
+  parse_bool(int& i, const std::vector<PosToken>& tokens, const std::string& line) {
+  int pos = tokens[i].first;
+  bool value = tokens[i].second == "True";
+
+  i++;   // get past "True" or "False"
+
+  return std::make_shared<ASTLiteralBool>(pos, line, value);
 }
 
 
@@ -771,6 +818,24 @@ std::string ObjectInt::repr(int& remaining) const {
   std::string out = std::to_string(value_);
 
   remaining -= out.size();
+
+  return out;
+}
+
+
+std::string ObjectBool::repr(int& remaining) const {
+  if (remaining < 0) {
+    return "";
+  }
+
+  std::string out;
+  if (value_) {
+    out = "True";
+    remaining -= 4;
+  } else {
+    out = "False";
+    remaining -= 5;
+  }
 
   return out;
 }
@@ -1097,6 +1162,12 @@ std::shared_ptr<Object> ASTLiteralInt::run(
   return std::make_shared<ObjectInt>(value_);
 }
 
+std::shared_ptr<Object> ASTLiteralBool::run(
+  std::shared_ptr<Scope> scope,
+  std::vector<std::shared_ptr<ASTNode>>& stack
+) {
+  return std::make_shared<ObjectBool>(value_);
+}
 
 std::shared_ptr<Object> ASTLiteralList::run(
   std::shared_ptr<Scope> scope,
