@@ -1446,6 +1446,7 @@ int main(int argc, char** argv) {
   std::cout << "                     num = -123        add(x, x)   get(lst, i)   map(f, lst)" << std::endl;
   std::cout << "               oo    lst = [1, 2, 3]   mul(x, x)   len(lst)      reduce(f, lst)" << std::endl;
   std::cout << ". . . __/\\_/\\_/`'    f = def(x) single-expr   f = def(x, y) { ... ; last-expr }" << std::endl;
+  std::cout << "                     equals(a, b)      if cond expr else expr" << std::endl;
   std::cout << std::endl;
 
   linenoise::LoadHistory(".baby-python-history");
