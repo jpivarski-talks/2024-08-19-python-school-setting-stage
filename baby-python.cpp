@@ -369,6 +369,28 @@ private:
 };
 
 
+class ASTIfElse: public ASTNode, public std::enable_shared_from_this<ASTIfElse> {
+public:
+  ASTIfElse(
+    int pos,
+    const std::string& line,
+    std::shared_ptr<ASTNode> cond,
+    std::shared_ptr<ASTNode> case_then,
+    std::shared_ptr<ASTNode> case_else
+  ): cond_(cond), then_(case_then), else_(case_else), ASTNode(pos, line) { }
+
+  std::shared_ptr<Object> run(
+    std::shared_ptr<Scope> scope,
+    std::vector<std::shared_ptr<ASTNode>>& stack
+  ) override;
+
+private:
+  std::shared_ptr<ASTNode> cond_;
+  std::shared_ptr<ASTNode> then_;
+  std::shared_ptr<ASTNode> else_;
+};
+
+
 class ASTAssignment: public ASTNode {
 public:
   ASTAssignment(
@@ -460,6 +482,8 @@ std::shared_ptr<ASTNode>
 std::shared_ptr<ASTNode>
   parse_call(int& i, const std::vector<PosToken>& tokens, const std::string& line);
 std::shared_ptr<ASTNode>
+  parse_ifelse(int& i, const std::vector<PosToken>& tokens, const std::string& line);
+std::shared_ptr<ASTNode>
   parse_assign(int& i, const std::vector<PosToken>& tokens, const std::string& line);
 std::shared_ptr<ASTNode>
   parse_delete(int& i, const std::vector<PosToken>& tokens, const std::string& line);
@@ -541,6 +565,10 @@ std::shared_ptr<ASTNode>
 
   else if (tokens[i].second == "del") {
     return parse_delete(i, tokens, line);
+  }
+
+  else if (tokens[i].second == "if") {
+    return parse_ifelse(i, tokens, line);
   }
 
   else if (tokens[i].second == "True" || tokens[i].second == "False") {
@@ -713,6 +741,27 @@ std::shared_ptr<ASTNode>
   i++;   // get past ")"
 
   return std::make_shared<ASTCallNamed>(pos, line, name, args);
+}
+
+
+std::shared_ptr<ASTNode>
+  parse_ifelse(int& i, const std::vector<PosToken>& tokens, const std::string& line) {
+  int pos = tokens[i].first;
+
+  // parse if condition expr else expr
+  i++; // get past if
+
+  std::shared_ptr<ASTNode> condition = parse(i, tokens, line);
+  std::shared_ptr<ASTNode> then = parse(i, tokens, line);
+
+  if (tokens[i].second != "else") {
+    throw error(tokens[i].first, "expected 'else' here");
+  }
+  i++;  // get past else
+
+  std::shared_ptr<ASTNode> otherwise = parse(i, tokens, line);
+
+  return std::make_shared<ASTIfElse>(pos, line, condition, then, otherwise);
 }
 
 
@@ -1298,6 +1347,23 @@ std::shared_ptr<Object> ASTCallNamed::run(
   stack.pop_back();
 
   return result;
+}
+
+
+std::shared_ptr<Object> ASTIfElse::run(
+  std::shared_ptr<Scope> scope,
+  std::vector<std::shared_ptr<ASTNode>>& stack
+) {
+  std::shared_ptr<ObjectBool> cond_eval = std::dynamic_pointer_cast<ObjectBool>(cond_->run(scope, stack));
+  if (!cond_eval) {
+    throw error(stack, "the expression after 'if' must evaluate to True or False");
+  }
+  bool condition_true = std::dynamic_pointer_cast<ObjectBool>(cond_eval)->value();
+  if(condition_true) {
+    return then_->run(scope, stack);
+  } else {
+    return else_->run(scope, stack);
+  }
 }
 
 
