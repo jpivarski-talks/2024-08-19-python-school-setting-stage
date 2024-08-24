@@ -18,7 +18,7 @@
 
 
 const int MAX_REPR = 80;
-const int MAX_RECURSION = 20;
+const int MAX_RECURSION = 2000;
 
 class Object;
 class ASTNode;
