@@ -18,7 +18,7 @@
 
 
 const int MAX_REPR = 80;
-const int MAX_RECURSION = 20;
+const int MAX_RECURSION = 20000;
 
 class Object;
 class ASTNode;
@@ -73,6 +73,19 @@ public:
 
 private:
   int value_;
+};
+
+
+class ObjectBool: public Object {
+public:
+  ObjectBool(bool value): value_(value), Object() { }
+
+  bool value() const { return value_; }
+
+  std::string repr(int& remaining) const override;
+
+private:
+  bool value_;
 };
 
 
@@ -132,6 +145,20 @@ public:
   ) override;
 
 private:
+};
+
+
+class ObjectFunctionEquals: public ObjectFunction {
+public:
+  ObjectFunctionEquals(): ObjectFunction() { }
+
+  std::string repr(int& remaining) const override;
+
+  std::shared_ptr<Object> run(
+    std::shared_ptr<Scope> scope,
+    std::vector<std::shared_ptr<ASTNode>>& stack,
+    std::vector<std::shared_ptr<Object>> args
+  ) override;
 };
 
 
@@ -254,6 +281,23 @@ private:
 };
 
 
+class ASTLiteralBool: public ASTNode {
+public:
+  ASTLiteralBool(int pos, const std::string& line, bool value)
+    : value_(value), ASTNode(pos, line) { }
+
+    bool value() const { return value_; }
+
+    std::shared_ptr<Object> run(
+      std::shared_ptr<Scope> scope,
+      std::vector<std::shared_ptr<ASTNode>>& stack
+    ) override;
+
+private:
+  bool value_;
+};
+
+
 class ASTLiteralList: public ASTNode {
 public:
   ASTLiteralList(
@@ -322,6 +366,28 @@ public:
 private:
   const std::string name_;
   std::vector<std::shared_ptr<ASTNode>> args_;
+};
+
+
+class ASTIfElse: public ASTNode, public std::enable_shared_from_this<ASTIfElse> {
+public:
+  ASTIfElse(
+    int pos,
+    const std::string& line,
+    std::shared_ptr<ASTNode> cond,
+    std::shared_ptr<ASTNode> case_then,
+    std::shared_ptr<ASTNode> case_else
+  ): cond_(cond), then_(case_then), else_(case_else), ASTNode(pos, line) { }
+
+  std::shared_ptr<Object> run(
+    std::shared_ptr<Scope> scope,
+    std::vector<std::shared_ptr<ASTNode>>& stack
+  ) override;
+
+private:
+  std::shared_ptr<ASTNode> cond_;
+  std::shared_ptr<ASTNode> then_;
+  std::shared_ptr<ASTNode> else_;
 };
 
 
@@ -408,11 +474,15 @@ std::shared_ptr<ASTNode>
 std::shared_ptr<ASTNode>
   parse_int(int& i, const std::vector<PosToken>& tokens, const std::string& line);
 std::shared_ptr<ASTNode>
+  parse_bool(int& i, const std::vector<PosToken>& tokens, const std::string& line);
+std::shared_ptr<ASTNode>
   parse_list(int& i, const std::vector<PosToken>& tokens, const std::string& line);
 std::shared_ptr<ASTNode>
   parse_fun(int& i, const std::vector<PosToken>& tokens, const std::string& line);
 std::shared_ptr<ASTNode>
   parse_call(int& i, const std::vector<PosToken>& tokens, const std::string& line);
+std::shared_ptr<ASTNode>
+  parse_ifelse(int& i, const std::vector<PosToken>& tokens, const std::string& line);
 std::shared_ptr<ASTNode>
   parse_assign(int& i, const std::vector<PosToken>& tokens, const std::string& line);
 std::shared_ptr<ASTNode>
@@ -497,6 +567,14 @@ std::shared_ptr<ASTNode>
     return parse_delete(i, tokens, line);
   }
 
+  else if (tokens[i].second == "if") {
+    return parse_ifelse(i, tokens, line);
+  }
+
+  else if (tokens[i].second == "True" || tokens[i].second == "False") {
+    return parse_bool(i, tokens, line);
+  }
+
   else if (std::regex_match(tokens[i].second, is_number)) {
     return parse_int(i, tokens, line);
   }
@@ -529,6 +607,17 @@ std::shared_ptr<ASTNode>
   i++;  // get past int
 
   return std::make_shared<ASTLiteralInt>(pos, line, value);
+}
+
+
+std::shared_ptr<ASTNode>
+  parse_bool(int& i, const std::vector<PosToken>& tokens, const std::string& line) {
+  int pos = tokens[i].first;
+  bool value = tokens[i].second == "True";
+
+  i++;   // get past "True" or "False"
+
+  return std::make_shared<ASTLiteralBool>(pos, line, value);
 }
 
 
@@ -656,6 +745,27 @@ std::shared_ptr<ASTNode>
 
 
 std::shared_ptr<ASTNode>
+  parse_ifelse(int& i, const std::vector<PosToken>& tokens, const std::string& line) {
+  int pos = tokens[i].first;
+
+  // parse if condition expr else expr
+  i++; // get past if
+
+  std::shared_ptr<ASTNode> condition = parse(i, tokens, line);
+  std::shared_ptr<ASTNode> then = parse(i, tokens, line);
+
+  if (tokens[i].second != "else") {
+    throw error(tokens[i].first, "expected 'else' here");
+  }
+  i++;  // get past else
+
+  std::shared_ptr<ASTNode> otherwise = parse(i, tokens, line);
+
+  return std::make_shared<ASTIfElse>(pos, line, condition, then, otherwise);
+}
+
+
+std::shared_ptr<ASTNode>
   parse_assign(int& i, const std::vector<PosToken>& tokens, const std::string& line) {
   int pos = tokens[i].first;
   const std::string name = tokens[i].second;
@@ -776,6 +886,24 @@ std::string ObjectInt::repr(int& remaining) const {
 }
 
 
+std::string ObjectBool::repr(int& remaining) const {
+  if (remaining < 0) {
+    return "";
+  }
+
+  std::string out;
+  if (value_) {
+    out = "True";
+    remaining -= 4;
+  } else {
+    out = "False";
+    remaining -= 5;
+  }
+
+  return out;
+}
+
+
 std::string ObjectList::repr(int& remaining) const {
   if (remaining < 0) {
     return "";
@@ -883,6 +1011,71 @@ std::shared_ptr<Object> ObjectFunctionMul::run(
   else {
     throw error(stack, "'mul' function's arguments must both be integers");
   }
+}
+
+
+std::string ObjectFunctionEquals::repr(int& remaining) const {
+  if (remaining < 0) {
+    return "";
+  }
+
+  remaining -= 27;
+
+  return "<builtin function 'equals'>";
+}
+
+
+bool compare_objects(std::shared_ptr<Object> arg0, std::shared_ptr<Object> arg1) {
+  std::shared_ptr<ObjectInt> arg0_int = std::dynamic_pointer_cast<ObjectInt>(arg0);
+  std::shared_ptr<ObjectInt> arg1_int = std::dynamic_pointer_cast<ObjectInt>(arg1);
+
+  std::shared_ptr<ObjectBool> arg0_bool = std::dynamic_pointer_cast<ObjectBool>(arg0);
+  std::shared_ptr<ObjectBool> arg1_bool = std::dynamic_pointer_cast<ObjectBool>(arg1);
+
+  std::shared_ptr<ObjectList> arg0_list = std::dynamic_pointer_cast<ObjectList>(arg0);
+  std::shared_ptr<ObjectList> arg1_list = std::dynamic_pointer_cast<ObjectList>(arg1);
+
+  if (arg0_int && arg1_int) {
+    return arg0_int->value() == arg1_int->value();
+  }
+
+  else if (arg0_bool && arg1_bool) {
+    return arg0_bool->value() == arg1_bool->value();
+  }
+
+  else if (arg0_list && arg1_list) {
+    // element-wise equality
+    if (arg0_list->values().size() != arg1_list->values().size()) {
+      return false;
+    } else {
+      for (int i = 0; i < arg0_list->values().size(); i++) {
+        // compare every element of the list
+        if (!compare_objects(arg0_list->values()[i], arg1_list->values()[i])) {
+          return false;
+        }
+      }
+      // no elements were different
+      return true;
+    }
+  }
+
+  else {
+    // types are different
+    return false;
+  }
+}
+
+
+std::shared_ptr<Object> ObjectFunctionEquals::run(
+  std::shared_ptr<Scope> scope,
+  std::vector<std::shared_ptr<ASTNode>>& stack,
+  std::vector<std::shared_ptr<Object>> args
+) {
+  if (args.size() != 2) {
+    throw error(stack, "'equals' function takes exactly 2 arguments");
+  }
+
+  return std::make_shared<ObjectBool>(compare_objects(args[0], args[1]));
 }
 
 
@@ -1097,6 +1290,12 @@ std::shared_ptr<Object> ASTLiteralInt::run(
   return std::make_shared<ObjectInt>(value_);
 }
 
+std::shared_ptr<Object> ASTLiteralBool::run(
+  std::shared_ptr<Scope> scope,
+  std::vector<std::shared_ptr<ASTNode>>& stack
+) {
+  return std::make_shared<ObjectBool>(value_);
+}
 
 std::shared_ptr<Object> ASTLiteralList::run(
   std::shared_ptr<Scope> scope,
@@ -1151,6 +1350,23 @@ std::shared_ptr<Object> ASTCallNamed::run(
 }
 
 
+std::shared_ptr<Object> ASTIfElse::run(
+  std::shared_ptr<Scope> scope,
+  std::vector<std::shared_ptr<ASTNode>>& stack
+) {
+  std::shared_ptr<ObjectBool> cond_eval = std::dynamic_pointer_cast<ObjectBool>(cond_->run(scope, stack));
+  if (!cond_eval) {
+    throw error(stack, "the expression after 'if' must evaluate to True or False");
+  }
+  bool condition_true = std::dynamic_pointer_cast<ObjectBool>(cond_eval)->value();
+  if(condition_true) {
+    return then_->run(scope, stack);
+  } else {
+    return else_->run(scope, stack);
+  }
+}
+
+
 std::shared_ptr<Object> ASTAssignment::run(
   std::shared_ptr<Scope> scope,
   std::vector<std::shared_ptr<ASTNode>>& stack
@@ -1190,6 +1406,7 @@ int main(int argc, char** argv) {
   std::vector<std::shared_ptr<ASTNode>> stack;
   scope->assign("add", std::make_shared<ObjectFunctionAdd>(), stack);
   scope->assign("mul", std::make_shared<ObjectFunctionMul>(), stack);
+  scope->assign("equals", std::make_shared<ObjectFunctionEquals>(), stack);
   scope->assign("get", std::make_shared<ObjectFunctionGet>(), stack);
   scope->assign("len", std::make_shared<ObjectFunctionLen>(), stack);
   scope->assign("map", std::make_shared<ObjectFunctionMap>(), stack);
@@ -1229,6 +1446,7 @@ int main(int argc, char** argv) {
   std::cout << "                     num = -123        add(x, x)   get(lst, i)   map(f, lst)" << std::endl;
   std::cout << "               oo    lst = [1, 2, 3]   mul(x, x)   len(lst)      reduce(f, lst)" << std::endl;
   std::cout << ". . . __/\\_/\\_/`'    f = def(x) single-expr   f = def(x, y) { ... ; last-expr }" << std::endl;
+  std::cout << "                     equals(a, b)      if cond expr else expr" << std::endl;
   std::cout << std::endl;
 
   linenoise::LoadHistory(".baby-python-history");
